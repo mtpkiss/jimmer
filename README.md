@@ -7,6 +7,13 @@ A revolutionary ORM framework for both java and kotlin.
 - ORM based on immutable data model
 - The ORM also provides a specialized API to speed up the development of Spring GraphQL
 
+It allows developers to arbitrarily outline an area in the relational diagram of the database and decide which entities, relationships and even fields should be included in the area.
+
+then consider this area as a whole
+1. Query
+2. Save
+3. Cache(And automatically ensure data consistency)
+
 ## 1，Video links
 
 <table>
@@ -15,11 +22,14 @@ A revolutionary ORM framework for both java and kotlin.
       <td>https://www.youtube.com/watch?v=Rt5zNv0YR2E</td>
    </tr>
    <tr>
-      <td rowspan="2">Chinese</td>
+      <td rowspan="3">Chinese</td>
       <td>Global introduction: https://www.bilibili.com/video/BV1kd4y1A7K3</td>
    </tr>
    <tr>
       <td>Table Join Topic: https://www.bilibili.com/video/BV19t4y177PX</td>
+   </tr>
+   <tr>
+      <td>Global filters and parameterized cache: https://www.bilibili.com/video/BV1Mt4y1u7fz/</td>
    </tr>
 <table>
 
