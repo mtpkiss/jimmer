@@ -7,7 +7,6 @@ import org.babyfish.jimmer.sql.association.meta.AssociationType;
 import org.babyfish.jimmer.sql.ast.impl.AbstractMutableStatementImpl;
 import org.babyfish.jimmer.sql.ast.query.*;
 import org.babyfish.jimmer.sql.ast.table.AssociationTable;
-import org.babyfish.jimmer.sql.ast.table.AssociationTableEx;
 import org.babyfish.jimmer.sql.ast.table.TableEx;
 import org.babyfish.jimmer.sql.ast.table.Table;
 import org.babyfish.jimmer.sql.runtime.ExecutionPurpose;
@@ -20,7 +19,6 @@ public class Queries {
 
     private Queries() {}
 
-    @SuppressWarnings("unchecked")
     public static <T extends Table<?>, R> ConfigurableRootQuery<T, R> createQuery(
             JSqlClient sqlClient,
             Class<T> tableType,
@@ -36,44 +34,9 @@ public class Queries {
                 ExecutionPurpose.QUERY,
                 false
         );
-        ConfigurableRootQuery<T, R> typedQuery = block.apply(query, (T)query.getTable());
-        query.freeze();
-        return typedQuery;
+        return block.apply(query, query.getTable());
     }
 
-    @SuppressWarnings("unchecked")
-    public static <T extends Table<?>, R> ConfigurableSubQuery<R> createSubQuery(
-            Filterable parent,
-            Class<T> tableType,
-            BiFunction<MutableSubQuery, T, ConfigurableSubQuery<R>> block
-    ) {
-        ImmutableType immutableType = ImmutableType.get(tableType);
-        MutableSubQueryImpl query = new MutableSubQueryImpl(
-                (AbstractMutableStatementImpl) parent,
-                immutableType
-        );
-        ConfigurableSubQuery<R> typedQuery = block.apply(query, (T)query.getTable());
-        query.freeze();
-        return typedQuery;
-    }
-
-    @SuppressWarnings("unchecked")
-    public static <T extends Table<?>> MutableSubQuery createWildSubQuery(
-            Filterable parent,
-            Class<T> tableType,
-            BiConsumer<MutableSubQuery, T> block
-    ) {
-        ImmutableType immutableType = ImmutableType.get(tableType);
-        MutableSubQueryImpl query = new MutableSubQueryImpl(
-                (AbstractMutableStatementImpl) parent,
-                immutableType
-        );
-        block.accept(query, (T)query.getTable());
-        query.freeze();
-        return query;
-    }
-
-    @SuppressWarnings("unchecked")
     public static <R> ConfigurableRootQuery<Table<?>, R> createQuery(
             JSqlClient sqlClient,
             ImmutableType immutableType,
@@ -95,12 +58,9 @@ public class Queries {
                 purpose,
                 ignoreFilter
         );
-        ConfigurableRootQuery<Table<?>, R> typedQuery = block.apply(query, query.getTable());
-        query.freeze();
-        return typedQuery;
+        return block.apply(query, query.getTable());
     }
 
-    @SuppressWarnings("unchecked")
     public static <SE, ST extends Table<SE>, TE, TT extends Table<TE>, R>
     ConfigurableRootQuery<AssociationTable<SE, ST, TE, TT>, R> createAssociationQuery(
             JSqlClient sqlClient,
@@ -110,7 +70,7 @@ public class Queries {
                     MutableRootQuery<AssociationTable<SE, ST, TE, TT>>,
                     AssociationTable<SE, ST, TE, TT>,
                     ConfigurableRootQuery<AssociationTable<SE, ST, TE, TT>, R>
-            > block
+                    > block
     ) {
         AssociationType associationType = AssociationType.of(
                 ImmutableProps.join(sourceTableType, targetTableGetter)
@@ -121,71 +81,7 @@ public class Queries {
                 ExecutionPurpose.QUERY,
                 false
         );
-        ConfigurableRootQuery<AssociationTable<SE, ST, TE, TT>, R> typedQuery =
-                block.apply(query, (AssociationTable<SE, ST, TE, TT>)query.getTable());
-        query.freeze();
-        return typedQuery;
-    }
-
-    @SuppressWarnings("unchecked")
-    public static <SE, ST extends TableEx<SE>, TE, TT extends TableEx<TE>, R>
-    ConfigurableSubQuery<R> createAssociationSubQuery(
-            Filterable parent,
-            Class<ST> sourceTableType,
-            Function<ST, TT> targetTableGetter,
-            BiFunction<
-                    MutableSubQuery,
-                    AssociationTableEx<SE, ST, TE, TT>,
-                    ConfigurableSubQuery<R>
-            > block
-    ) {
-        AssociationType associationType = AssociationType.of(
-                ImmutableProps.join(sourceTableType, targetTableGetter)
-        );
-        MutableSubQueryImpl subQuery = new MutableSubQueryImpl(
-                (AbstractMutableStatementImpl) parent,
-                associationType
-        );
-        ConfigurableSubQuery<R> typedSubQuery =
-                block.apply(subQuery, (AssociationTableEx<SE, ST, TE, TT>)subQuery.getTable());
-        subQuery.freeze();
-        return typedSubQuery;
-    }
-
-    @SuppressWarnings("unchecked")
-    public static <SE, ST extends TableEx<SE>, TE, TT extends TableEx<TE>, R>
-    MutableSubQuery createAssociationWildSubQuery(
-            Filterable parent,
-            Class<ST> sourceTableType,
-            Function<ST, TT> targetTableGetter,
-            BiConsumer<
-                    MutableSubQuery,
-                    AssociationTableEx<SE, ST, TE, TT>
-            > block
-    ) {
-        AssociationType associationType = AssociationType.of(
-                ImmutableProps.join(sourceTableType, targetTableGetter)
-        );
-        MutableSubQueryImpl subQuery = new MutableSubQueryImpl(
-                (AbstractMutableStatementImpl) parent,
-                associationType
-        );
-        block.accept(subQuery, (AssociationTableEx<SE, ST, TE, TT>)subQuery.getTable());
-        subQuery.freeze();
-        return subQuery;
-    }
-
-    public static <R>
-    ConfigurableRootQuery<AssociationTable<?, ?, ?, ?>, R> createAssociationQuery(
-            JSqlClient sqlClient,
-            AssociationType associationType,
-            BiFunction<
-                    MutableRootQuery<AssociationTable<?, ?, ?, ?>>,
-                    AssociationTable<?, ?, ?, ?>,
-                    ConfigurableRootQuery<AssociationTable<?, ?, ?, ?>, R>
-            > block
-    ) {
-        return createAssociationQuery(sqlClient, associationType, ExecutionPurpose.QUERY, block);
+        return block.apply(query, query.getTable());
     }
 
     public static <R>
@@ -197,7 +93,7 @@ public class Queries {
                     MutableRootQuery<AssociationTable<?, ?, ?, ?>>,
                     AssociationTable<?, ?, ?, ?>,
                     ConfigurableRootQuery<AssociationTable<?, ?, ?, ?>, R>
-            > block
+                    > block
     ) {
         MutableRootQueryImpl<AssociationTable<?, ?, ?, ?>> query = new MutableRootQueryImpl<>(
                 sqlClient,
@@ -205,9 +101,75 @@ public class Queries {
                 purpose,
                 false
         );
-        ConfigurableRootQuery<AssociationTable<?, ?, ?, ?>, R> typedQuery =
-                block.apply(query, (AssociationTable<?, ?, ?, ?>)query.getTable());
-        query.freeze();
-        return typedQuery;
+        return block.apply(query, query.getTable());
+    }
+
+    public static <T extends Table<?>, R> ConfigurableSubQuery<R> createSubQuery(
+            Filterable parent,
+            Class<T> tableType,
+            BiFunction<MutableSubQuery, T, ConfigurableSubQuery<R>> block
+    ) {
+        ImmutableType immutableType = ImmutableType.get(tableType);
+        MutableSubQueryImpl query = new MutableSubQueryImpl(
+                (AbstractMutableStatementImpl) parent,
+                immutableType
+        );
+        return block.apply(query, query.getTable());
+    }
+
+    public static <T extends Table<?>> MutableSubQuery createWildSubQuery(
+            Filterable parent,
+            Class<T> tableType,
+            BiConsumer<MutableSubQuery, T> block
+    ) {
+        ImmutableType immutableType = ImmutableType.get(tableType);
+        MutableSubQueryImpl query = new MutableSubQueryImpl(
+                (AbstractMutableStatementImpl) parent,
+                immutableType
+        );
+        block.accept(query, query.getTable());
+        return query;
+    }
+
+    public static <SE, ST extends TableEx<SE>, TE, TT extends TableEx<TE>, R>
+    ConfigurableSubQuery<R> createAssociationSubQuery(
+            Filterable parent,
+            Class<ST> sourceTableType,
+            Function<ST, TT> targetTableGetter,
+            BiFunction<
+                    MutableSubQuery,
+                    AssociationTable<SE, ST, TE, TT>,
+                    ConfigurableSubQuery<R>
+            > block
+    ) {
+        AssociationType associationType = AssociationType.of(
+                ImmutableProps.join(sourceTableType, targetTableGetter)
+        );
+        MutableSubQueryImpl subQuery = new MutableSubQueryImpl(
+                (AbstractMutableStatementImpl) parent,
+                associationType
+        );
+        return block.apply(subQuery, subQuery.getTable());
+    }
+
+    public static <SE, ST extends TableEx<SE>, TE, TT extends TableEx<TE>, R>
+    MutableSubQuery createAssociationWildSubQuery(
+            Filterable parent,
+            Class<ST> sourceTableType,
+            Function<ST, TT> targetTableGetter,
+            BiConsumer<
+                    MutableSubQuery,
+                    AssociationTable<SE, ST, TE, TT>
+                    > block
+    ) {
+        AssociationType associationType = AssociationType.of(
+                ImmutableProps.join(sourceTableType, targetTableGetter)
+        );
+        MutableSubQueryImpl subQuery = new MutableSubQueryImpl(
+                (AbstractMutableStatementImpl) parent,
+                associationType
+        );
+        block.accept(subQuery, subQuery.getTable());
+        return subQuery;
     }
 }

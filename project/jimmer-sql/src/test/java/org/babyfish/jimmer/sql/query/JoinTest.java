@@ -14,8 +14,9 @@ public class JoinTest extends AbstractQueryTest {
 
     @Test
     public void testSimple() {
+
         executeAndExpect(
-                getSqlClient().createQuery(BookTable.class, (q, book) -> {
+                getLambdaClient().createQuery(BookTable.class, (q, book) -> {
                     return q.select(book);
                 }),
                 ctx -> {
@@ -31,7 +32,7 @@ public class JoinTest extends AbstractQueryTest {
     @Test
     public void testUnused() {
         executeAndExpect(
-                getSqlClient().createQuery(BookStoreTable.class, (q, store) -> {
+                getLambdaClient().createQuery(BookStoreTable.class, (q, store) -> {
                     store.asTableEx().books();
                     return q.select(store);
                 }),
@@ -43,7 +44,7 @@ public class JoinTest extends AbstractQueryTest {
                 }
         );
         executeAndExpect(
-                getSqlClient().createQuery(BookTable.class, (q, book) -> {
+                getLambdaClient().createQuery(BookTable.class, (q, book) -> {
                     ((BookTableEx)book).authors();
                     return q.select(book);
                 }),
@@ -60,7 +61,7 @@ public class JoinTest extends AbstractQueryTest {
     @Test
     public void testMergedJoinFromParentToChild() {
         executeAndExpect(
-                getSqlClient().createQuery(BookStoreTable.class, (q, store) -> {
+                getLambdaClient().createQuery(BookStoreTable.class, (q, store) -> {
                     q.where(
                             store.asTableEx().books(JoinType.LEFT).price()
                                     .ge(new BigDecimal(20))
@@ -98,7 +99,7 @@ public class JoinTest extends AbstractQueryTest {
     @Test
     public void testMergedJoinFromChildToParent() {
         executeAndExpect(
-                getSqlClient().createQuery(AuthorTable.class, (q, author) -> {
+                getLambdaClient().createQuery(AuthorTable.class, (q, author) -> {
                     q.where(
                             author
                                     .asTableEx()
@@ -140,7 +141,7 @@ public class JoinTest extends AbstractQueryTest {
     @Test
     public void testUnnecessaryJoin() {
         executeAndExpect(
-                getSqlClient().createQuery(BookTable.class, (q, book) -> {
+                getLambdaClient().createQuery(BookTable.class, (q, book) -> {
                     q.where(
                             book.store().id().in(Arrays.asList(oreillyId, manningId))
                     );
@@ -158,7 +159,7 @@ public class JoinTest extends AbstractQueryTest {
     @Test
     public void testHalfJoin() {
         executeAndExpect(
-                getSqlClient().createQuery(BookTable.class, (q, book) -> {
+                getLambdaClient().createQuery(BookTable.class, (q, book) -> {
                     q.where(
                             book
                                     .asTableEx()
@@ -183,7 +184,7 @@ public class JoinTest extends AbstractQueryTest {
     @Test
     public void testHalfInverseJoin() {
         executeAndExpect(
-                getSqlClient().createQuery(AuthorTable.class, (q, author) -> {
+                getLambdaClient().createQuery(AuthorTable.class, (q, author) -> {
                     q.where(
                             author
                                     .asTableEx()
@@ -208,7 +209,7 @@ public class JoinTest extends AbstractQueryTest {
     @Test
     public void testOneToManyCannotBeOptimized() {
         executeAndExpect(
-                getSqlClient().createQuery(BookStoreTable.class, (q, store) -> {
+                getLambdaClient().createQuery(BookStoreTable.class, (q, store) -> {
                     q.where(
                             store
                                     .asTableEx()
@@ -233,7 +234,7 @@ public class JoinTest extends AbstractQueryTest {
     @Test
     public void testOuterJoin() {
         executeAndExpect(
-                getSqlClient().createQuery(BookTable.class, (q, book) -> {
+                getLambdaClient().createQuery(BookTable.class, (q, book) -> {
                     q.where(
                             book.store(JoinType.LEFT).id().isNotNull().or(
                                     book.store(JoinType.LEFT).name().ilike("MANNING")

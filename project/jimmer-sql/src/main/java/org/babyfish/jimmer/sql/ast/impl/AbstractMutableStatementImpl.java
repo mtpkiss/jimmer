@@ -1,53 +1,98 @@
 package org.babyfish.jimmer.sql.ast.impl;
 
+import org.babyfish.jimmer.meta.ImmutableType;
 import org.babyfish.jimmer.sql.JSqlClient;
 import org.babyfish.jimmer.sql.ast.Predicate;
-import org.babyfish.jimmer.sql.ast.impl.query.Queries;
-import org.babyfish.jimmer.sql.ast.impl.table.TableAliasAllocator;
-import org.babyfish.jimmer.sql.ast.query.ConfigurableSubQuery;
+import org.babyfish.jimmer.sql.ast.impl.query.FilterableImplementor;
+import org.babyfish.jimmer.sql.ast.impl.table.StatementContext;
+import org.babyfish.jimmer.sql.ast.impl.table.TableImplementor;
+import org.babyfish.jimmer.sql.ast.impl.table.TableProxies;
 import org.babyfish.jimmer.sql.ast.query.Filterable;
 import org.babyfish.jimmer.sql.ast.query.MutableSubQuery;
-import org.babyfish.jimmer.sql.ast.table.AssociationTableEx;
+import org.babyfish.jimmer.sql.ast.table.AssociationTable;
 import org.babyfish.jimmer.sql.ast.table.Table;
 import org.babyfish.jimmer.sql.ast.table.TableEx;
+import org.babyfish.jimmer.sql.ast.table.spi.TableProxy;
 import org.babyfish.jimmer.sql.runtime.ExecutionPurpose;
 
 import java.util.*;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
-import java.util.function.Function;
 
-public abstract class AbstractMutableStatementImpl implements Filterable {
-
-    private final TableAliasAllocator tableAliasAllocator;
+public abstract class AbstractMutableStatementImpl implements FilterableImplementor {
 
     private final JSqlClient sqlClient;
 
-    protected final ExecutionPurpose purpose;
-
-    private boolean frozen;
+    private final ImmutableType type;
 
     private List<Predicate> predicates = new ArrayList<>();
 
+    private Table<?> table;
+
+    private TableImplementor<?> tableImplementor;
+
+    private boolean frozen;
+
     public AbstractMutableStatementImpl(
-            TableAliasAllocator tableAliasAllocator,
             JSqlClient sqlClient,
-            ExecutionPurpose purpose
+            ImmutableType type
     ) {
-        this.tableAliasAllocator = tableAliasAllocator;
-        if (this instanceof Fake) {
-            this.sqlClient = null;
-        } else {
-            Objects.requireNonNull(sqlClient, "sqlClient cannot be null");
-            this.sqlClient = sqlClient;
+        if (!type.isEntity()) {
+            throw new IllegalArgumentException("\"" + type + "\" is not entity");
         }
-        this.purpose = purpose != null ? purpose : ExecutionPurpose.QUERY;
+        this.sqlClient = sqlClient;
+        this.type = type;
     }
 
-    public abstract <T extends Table<?>> T getTable();
+    public AbstractMutableStatementImpl(
+            JSqlClient sqlClient,
+            TableProxy<?> table
+    ) {
+        if (table.__unwrap() != null) {
+            throw new IllegalArgumentException("table proxy cannot be wrapper");
+        }
+        this.sqlClient = Objects.requireNonNull(
+                sqlClient,
+                "sqlClient cannot be null"
+        );
+        this.table = table;
+        this.type = table.getImmutableType();
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T extends Table<?>> T getTable() {
+        Table<?> table = this.table;
+        if (table == null) {
+            this.table = table = TableProxies.wrap(getTableImplementor());
+        }
+        return (T)table;
+    }
+
+    public TableImplementor<?> getTableImplementor() {
+        TableImplementor<?> tableImplementor = this.tableImplementor;
+        if (tableImplementor == null) {
+            this.tableImplementor = tableImplementor =
+                    TableImplementor.create(this, type);
+        }
+        return tableImplementor;
+    }
 
     public Predicate getPredicate() {
         return predicates.isEmpty() ? null : predicates.get(0);
+    }
+
+    public abstract StatementContext getContext();
+
+    public abstract AbstractMutableStatementImpl getParent();
+
+    @Override
+    public MutableSubQuery createSubQuery(TableProxy<?> table) {
+        return sqlClient.createSubQuery(table);
+    }
+
+    @Override
+    public <SE, ST extends TableEx<SE>, TE, TT extends TableEx<TE>> MutableSubQuery createAssociationSubQuery(
+            AssociationTable<SE, ST, TE, TT> table
+    ) {
+        return sqlClient.createAssociationSubQuery(table);
     }
 
     public final boolean freeze() {
@@ -60,9 +105,7 @@ public abstract class AbstractMutableStatementImpl implements Filterable {
     }
 
     protected void onFrozen() {
-        if (predicates.size() > 1) {
-            predicates = mergePredicates(predicates);
-        }
+        predicates = mergePredicates(predicates);
     }
 
     public void validateMutable() {
@@ -73,18 +116,8 @@ public abstract class AbstractMutableStatementImpl implements Filterable {
         }
     }
 
-    public TableAliasAllocator getTableAliasAllocator() {
-        return tableAliasAllocator;
-    }
-
     public JSqlClient getSqlClient() {
-        JSqlClient client = sqlClient;
-        if (client == null) {
-            throw new UnsupportedOperationException(
-                    "getSqlClient() is not supported by " + Fake.class.getName()
-            );
-        }
-        return client;
+        return sqlClient;
     }
 
     @Override
@@ -98,49 +131,9 @@ public abstract class AbstractMutableStatementImpl implements Filterable {
         return this;
     }
 
-    @Override
-    public <T extends Table<?>, R> ConfigurableSubQuery<R> createSubQuery(
-            Class<T> tableType, BiFunction<MutableSubQuery, T, ConfigurableSubQuery<R>> block
-    ) {
-        return Queries.createSubQuery(this, tableType, block);
-    }
-
-    @Override
-    public <T extends Table<?>> MutableSubQuery createWildSubQuery(
-            Class<T> tableType, BiConsumer<MutableSubQuery, T> block
-    ) {
-        return Queries.createWildSubQuery(this, tableType, block);
-    }
-
-    @Override
-    public <SE, ST extends TableEx<SE>, TE, TT extends TableEx<TE>, R>
-    ConfigurableSubQuery<R> createAssociationSubQuery(
-            Class<ST> sourceTableType,
-            Function<ST, TT> targetTableGetter,
-            BiFunction<MutableSubQuery, AssociationTableEx<SE, ST, TE, TT>, ConfigurableSubQuery<R>> block
-    ) {
-        return Queries.createAssociationSubQuery(this, sourceTableType, targetTableGetter, block);
-    }
-
-    @Override
-    public <SE, ST extends TableEx<SE>, TE, TT extends TableEx<TE>, R>
-    MutableSubQuery createAssociationWildSubQuery(
-            Class<ST> sourceTableType,
-            Function<ST, TT> targetTableGetter,
-            BiConsumer<MutableSubQuery, AssociationTableEx<SE, ST, TE, TT>> block
-    ) {
-        return Queries.createAssociationWildSubQuery(this, sourceTableType, targetTableGetter, block);
-    }
-
     public ExecutionPurpose getPurpose() {
-        return purpose;
+        return getContext().getPurpose();
     }
-
-    public static AbstractMutableStatementImpl fake() {
-        return new Fake();
-    }
-
-    private static final Predicate[] EMPTY_PREDICATE = new Predicate[0];
 
     protected static List<Predicate> mergePredicates(List<Predicate> predicates) {
         if (predicates.size() < 2) {
@@ -153,20 +146,5 @@ public abstract class AbstractMutableStatementImpl implements Filterable {
         );
     }
 
-    private static class Fake extends AbstractMutableStatementImpl {
-
-        private Fake() {
-            super(new TableAliasAllocator(), null, ExecutionPurpose.QUERY);
-        }
-
-        @Override
-        public AbstractMutableStatementImpl where(Predicate ... predicates) {
-            throw new UnsupportedOperationException("Fake statement does not support where operation");
-        }
-
-        @Override
-        public <T extends Table<?>> T getTable() {
-            throw new UnsupportedOperationException("Fake statement does not support table property");
-        }
-    }
+    private static final Predicate[] EMPTY_PREDICATE = new Predicate[0];
 }

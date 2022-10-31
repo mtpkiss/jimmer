@@ -6,21 +6,19 @@ import org.babyfish.jimmer.meta.ImmutableProp;
 import org.babyfish.jimmer.meta.ImmutableType;
 import org.babyfish.jimmer.meta.TypedProp;
 import org.babyfish.jimmer.sql.association.meta.AssociationType;
+import org.babyfish.jimmer.sql.ast.query.*;
 import org.babyfish.jimmer.sql.ast.table.AssociationTable;
+import org.babyfish.jimmer.sql.ast.table.spi.TableProxy;
 import org.babyfish.jimmer.sql.cache.CacheConfig;
 import org.babyfish.jimmer.sql.cache.CacheDisableConfig;
 import org.babyfish.jimmer.sql.cache.Caches;
 import org.babyfish.jimmer.sql.filter.Filter;
 import org.babyfish.jimmer.sql.filter.FilterConfig;
 import org.babyfish.jimmer.sql.filter.Filters;
-import org.babyfish.jimmer.sql.fluent.Fluent;
 import org.babyfish.jimmer.sql.loader.Loaders;
 import org.babyfish.jimmer.sql.meta.IdGenerator;
-import org.babyfish.jimmer.sql.ast.Executable;
 import org.babyfish.jimmer.sql.ast.mutation.MutableDelete;
 import org.babyfish.jimmer.sql.ast.mutation.MutableUpdate;
-import org.babyfish.jimmer.sql.ast.query.ConfigurableRootQuery;
-import org.babyfish.jimmer.sql.ast.query.MutableRootQuery;
 import org.babyfish.jimmer.sql.ast.table.Table;
 import org.babyfish.jimmer.sql.dialect.Dialect;
 import org.babyfish.jimmer.sql.runtime.ConnectionManager;
@@ -29,12 +27,9 @@ import org.babyfish.jimmer.sql.runtime.Executor;
 import org.babyfish.jimmer.sql.runtime.ScalarProvider;
 
 import java.util.Collection;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
-public interface JSqlClient {
+public interface JSqlClient extends SubQueryProvider {
 
     static Builder newBuilder() {
         return new JSqlClientImpl.BuilderImpl();
@@ -56,32 +51,15 @@ public interface JSqlClient {
 
     int getDefaultListBatchSize();
 
-    Fluent createFluent();
+    <T extends TableProxy<?>> MutableRootQuery<T> createQuery(T table);
 
-    <T extends Table<?>, R> ConfigurableRootQuery<T, R> createQuery(
-            Class<T> tableType,
-            BiFunction<MutableRootQuery<T>, T, ConfigurableRootQuery<T, R>> block
-    );
+    MutableUpdate createUpdate(TableProxy<?> table);
 
-    <SE, ST extends Table<SE>, TE, TT extends Table<TE>, R>
-    ConfigurableRootQuery<AssociationTable<SE, ST, TE, TT>, R> createAssociationQuery(
-            Class<ST> sourceTableType,
-            Function<ST, TT> targetTableGetter,
-            BiFunction<
-                    MutableRootQuery<AssociationTable<SE, ST, TE, TT>>,
-                    AssociationTable<SE, ST, TE, TT>,
-                    ConfigurableRootQuery<AssociationTable<SE, ST, TE, TT>, R>
-            > block
-    );
+    MutableDelete createDelete(TableProxy<?> table);
 
-    <T extends Table<?>> Executable<Integer> createUpdate(
-            Class<T> tableType,
-            BiConsumer<MutableUpdate, T> block
-    );
-
-    <T extends Table<?>> Executable<Integer> createDelete(
-            Class<T> tableType,
-            BiConsumer<MutableDelete, T> block
+    <SE, ST extends Table<SE>, TE, TT extends Table<TE>>
+    MutableRootQuery<AssociationTable<SE, ST, TE, TT>> createAssociationQuery(
+            AssociationTable<SE,ST, TE, TT> table
     );
 
     Entities getEntities();

@@ -5,7 +5,6 @@ import org.babyfish.jimmer.apt.GeneratorException;
 import org.babyfish.jimmer.apt.TypeUtils;
 import org.babyfish.jimmer.apt.meta.ImmutableProp;
 import org.babyfish.jimmer.apt.meta.ImmutableType;
-import org.babyfish.jimmer.meta.TargetLevel;
 import org.babyfish.jimmer.sql.JoinType;
 
 import javax.annotation.processing.Filer;
@@ -185,7 +184,6 @@ public class PropsGenerator {
         if (withJoinType && !prop.isAssociation()) {
             return null;
         }
-
         TypeName returnType;
         if (prop.isAssociation()) {
             if (isTableEx) {
@@ -222,7 +220,6 @@ public class PropsGenerator {
                 );
             }
         }
-
         MethodSpec.Builder builder = MethodSpec
                 .methodBuilder(prop.getName())
                 .addModifiers(Modifier.PUBLIC)
@@ -235,14 +232,23 @@ public class PropsGenerator {
             builder.addModifiers(Modifier.ABSTRACT);
         }
         if (withJoinType) {
-            builder.addParameter(JoinType.class, "joinType");
+            builder.addParameter(Constants.JOIN_TYPE_CLASS_NAME, "joinType");
         }
         if (withImplementation) {
             if (prop.isAssociation()) {
+                builder.addStatement("__beforeJoin()");
                 if (withJoinType) {
-                    builder.addStatement("return join($S, joinType)", prop.getName());
+                    builder
+                            .beginControlFlow("if (raw != null)")
+                            .addStatement("return new $T(raw.joinImplementor($S, joinType))", returnType, prop.getName())
+                            .endControlFlow()
+                            .addStatement("return new $T(joinOperation($S, joinType))", returnType, prop.getName());
                 } else {
-                    builder.addStatement("return join($S)", prop.getName());
+                    builder
+                            .beginControlFlow("if (raw != null)")
+                            .addStatement("return new $T(raw.joinImplementor($S))", returnType, prop.getName())
+                            .endControlFlow()
+                            .addStatement("return new $T(joinOperation($S))", returnType, prop.getName());
                 }
             } else {
                 builder.addStatement("return get($S)", prop.getName());

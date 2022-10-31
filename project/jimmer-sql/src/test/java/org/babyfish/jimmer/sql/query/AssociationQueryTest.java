@@ -20,7 +20,7 @@ public class AssociationQueryTest extends AbstractQueryTest {
     public void test() {
 
         executeAndExpect(
-                getSqlClient().createAssociationQuery(BookTableEx.class, BookTableEx::authors, (q, t) -> {
+                getLambdaClient().createAssociationQuery(BookTableEx.class, BookTableEx::authors, (q, t) -> {
                     q.where(t.source().name().eq("Learning GraphQL"));
                     q.where(t.target().firstName().eq("Alex"));
                     return q.select(t);
@@ -56,7 +56,7 @@ public class AssociationQueryTest extends AbstractQueryTest {
     @Test
     public void testInverse() {
         executeAndExpect(
-                getSqlClient().createAssociationQuery(AuthorTableEx.class, AuthorTableEx::books, (q, t) -> {
+                getLambdaClient().createAssociationQuery(AuthorTableEx.class, AuthorTableEx::books, (q, t) -> {
                     q.where(t.source().firstName().eq("Alex"));
                     q.where(t.target().name().eq("Learning GraphQL"));
                     return q.select(t);
@@ -92,10 +92,11 @@ public class AssociationQueryTest extends AbstractQueryTest {
     @Test
     public void testSubQuery() {
         executeAndExpect(
-                getSqlClient().createQuery(BookTable.class, (q, book) -> {
+                getLambdaClient().createQuery(BookTable.class, (q, book) -> {
                     q.where(
                             book.id().in(
-                                    q.createAssociationSubQuery(
+                                    getLambdaClient().createAssociationSubQuery(
+                                            q,
                                             BookTableEx.class,
                                             BookTableEx::authors,
                                             (sq, association) -> {

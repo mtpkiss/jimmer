@@ -5,23 +5,24 @@ import org.babyfish.jimmer.meta.ImmutableProp;
 import org.babyfish.jimmer.meta.ImmutableType;
 import org.babyfish.jimmer.meta.TypedProp;
 import org.babyfish.jimmer.meta.impl.RedirectedProp;
+import org.babyfish.jimmer.sql.ast.impl.mutation.MutableDeleteImpl;
+import org.babyfish.jimmer.sql.ast.impl.mutation.MutableUpdateImpl;
+import org.babyfish.jimmer.sql.ast.impl.query.MutableRootQueryImpl;
+import org.babyfish.jimmer.sql.ast.impl.query.MutableSubQueryImpl;
+import org.babyfish.jimmer.sql.ast.query.MutableSubQuery;
+import org.babyfish.jimmer.sql.ast.table.TableEx;
+import org.babyfish.jimmer.sql.ast.table.spi.TableProxy;
 import org.babyfish.jimmer.sql.filter.Filter;
 import org.babyfish.jimmer.sql.filter.FilterConfig;
 import org.babyfish.jimmer.sql.filter.Filters;
 import org.babyfish.jimmer.sql.filter.impl.FilterManager;
-import org.babyfish.jimmer.sql.fluent.Fluent;
-import org.babyfish.jimmer.sql.fluent.impl.FluentImpl;
 import org.babyfish.jimmer.sql.loader.Loaders;
 import org.babyfish.jimmer.sql.loader.impl.LoadersImpl;
 import org.babyfish.jimmer.sql.association.meta.AssociationType;
-import org.babyfish.jimmer.sql.ast.Executable;
 import org.babyfish.jimmer.sql.ast.impl.mutation.AssociationsImpl;
 import org.babyfish.jimmer.sql.ast.impl.EntitiesImpl;
-import org.babyfish.jimmer.sql.ast.impl.mutation.Mutations;
-import org.babyfish.jimmer.sql.ast.impl.query.Queries;
 import org.babyfish.jimmer.sql.ast.mutation.MutableDelete;
 import org.babyfish.jimmer.sql.ast.mutation.MutableUpdate;
-import org.babyfish.jimmer.sql.ast.query.ConfigurableRootQuery;
 import org.babyfish.jimmer.sql.ast.query.MutableRootQuery;
 import org.babyfish.jimmer.sql.ast.table.AssociationTable;
 import org.babyfish.jimmer.sql.ast.table.Table;
@@ -36,10 +37,7 @@ import org.babyfish.jimmer.sql.meta.IdGenerator;
 import org.babyfish.jimmer.sql.runtime.*;
 
 import java.util.*;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 class JSqlClientImpl implements JSqlClient {
 
@@ -182,46 +180,56 @@ class JSqlClientImpl implements JSqlClient {
     }
 
     @Override
-    public Fluent createFluent() {
-        return new FluentImpl(this);
+    public <T extends TableProxy<?>> MutableRootQuery<T> createQuery(T table) {
+        if (table instanceof TableEx<?>) {
+            throw new IllegalArgumentException("Top-level query does not support TableEx");
+        }
+        return new MutableRootQueryImpl<>(
+                this,
+                table,
+                ExecutionPurpose.QUERY,
+                false
+        );
     }
 
     @Override
-    public <T extends Table<?>, R> ConfigurableRootQuery<T, R> createQuery(
-            Class<T> tableType,
-            BiFunction<MutableRootQuery<T>, T, ConfigurableRootQuery<T, R>> block
-    ) {
-        return Queries.createQuery(this, tableType, block);
+    public MutableUpdate createUpdate(TableProxy<?> table) {
+        return new MutableUpdateImpl(this, table);
     }
 
     @Override
-    public <SE, ST extends Table<SE>, TE, TT extends Table<TE>, R>
-    ConfigurableRootQuery<AssociationTable<SE, ST, TE, TT>, R> createAssociationQuery(
-            Class<ST> sourceTableType,
-            Function<ST, TT> targetTableGetter,
-            BiFunction<
-                    MutableRootQuery<AssociationTable<SE, ST, TE, TT>>,
-                    AssociationTable<SE, ST, TE, TT>,
-                    ConfigurableRootQuery<AssociationTable<SE, ST, TE, TT>, R>
-                    > block
-    ) {
-        return Queries.createAssociationQuery(this, sourceTableType, targetTableGetter, block);
+    public MutableDelete createDelete(TableProxy<?> table) {
+        return new MutableDeleteImpl(this, table);
     }
 
     @Override
-    public <T extends Table<?>> Executable<Integer> createUpdate(
-            Class<T> tableType,
-            BiConsumer<MutableUpdate, T> block
+    public <SE, ST extends Table<SE>, TE, TT extends Table<TE>>
+    MutableRootQuery<AssociationTable<SE, ST, TE, TT>> createAssociationQuery(
+            AssociationTable<SE, ST, TE, TT> table
     ) {
-        return Mutations.createUpdate(this, tableType, block);
+        if (!(table instanceof TableProxy<?>)) {
+            throw new IllegalArgumentException("The argument \"table\" must be proxy");
+        }
+        return new MutableRootQueryImpl<>(
+                this,
+                (TableProxy<?>) table,
+                ExecutionPurpose.QUERY,
+                false
+        );
     }
 
     @Override
-    public <T extends Table<?>> Executable<Integer> createDelete(
-            Class<T> tableType,
-            BiConsumer<MutableDelete, T> block
-    ) {
-        return Mutations.createDelete(this, tableType, block);
+    public MutableSubQuery createSubQuery(TableProxy<?> table) {
+        return new MutableSubQueryImpl(this, table);
+    }
+
+    @Override
+    public <SE, ST extends TableEx<SE>, TE, TT extends TableEx<TE>>
+    MutableSubQuery createAssociationSubQuery(AssociationTable<SE, ST, TE, TT> table) {
+        if (!(table instanceof TableProxy<?>)) {
+            throw new IllegalArgumentException("The argument \"table\" must be proxy");
+        }
+        return new MutableSubQueryImpl(this, (TableProxy<?>) table);
     }
 
     @Override

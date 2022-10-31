@@ -11,16 +11,13 @@ import org.babyfish.jimmer.sql.ast.Predicate;
 import org.babyfish.jimmer.sql.ast.Selection;
 import org.babyfish.jimmer.sql.ast.impl.query.AbstractMutableQueryImpl;
 import org.babyfish.jimmer.sql.ast.impl.table.TableImplementor;
-import org.babyfish.jimmer.sql.ast.impl.table.TableWrappers;
+import org.babyfish.jimmer.sql.ast.impl.table.RootTableResolver;
 import org.babyfish.jimmer.sql.ast.query.ConfigurableSubQuery;
 import org.babyfish.jimmer.sql.ast.query.MutableSubQuery;
 import org.babyfish.jimmer.sql.ast.query.Order;
 import org.babyfish.jimmer.sql.ast.query.Sortable;
-import org.babyfish.jimmer.sql.ast.table.AssociationTableEx;
-import org.babyfish.jimmer.sql.ast.table.Props;
-import org.babyfish.jimmer.sql.ast.table.Table;
-import org.babyfish.jimmer.sql.ast.table.TableEx;
-import org.babyfish.jimmer.sql.ast.table.spi.TableWrapper;
+import org.babyfish.jimmer.sql.ast.table.*;
+import org.babyfish.jimmer.sql.ast.table.spi.TableProxy;
 import org.babyfish.jimmer.sql.fetcher.Fetcher;
 import org.babyfish.jimmer.sql.filter.FilterArgs;
 import org.jetbrains.annotations.NotNull;
@@ -31,10 +28,10 @@ import java.util.function.Function;
 
 public class FilterArgsImpl<P extends Props> implements FilterArgs<P> {
 
-    private static final String CACHEABLE_TABLE_JOIN_ERROR_MESSAGE =
+    private static final String JOIN_DISABLED_REASON =
             "The table for cacheable filter is not allow to join with other tables";
 
-    private static final String CACHEABLE_FILTER_SUB_QUERY_ERROR_MESSAGE =
+    private static final String SUB_QUERY_DISABLED_MESSAGE =
             "The cacheable filter cannot be used to create sub query";
 
     private final Sortable sortable;
@@ -47,12 +44,10 @@ public class FilterArgsImpl<P extends Props> implements FilterArgs<P> {
     public FilterArgsImpl(Sortable sortable, Props props, boolean forCache) {
         this.sortable = sortable;
         if (forCache) {
-            props = TableWrappers.wrap(
-                    (Table<?>) props,
-                    CACHEABLE_TABLE_JOIN_ERROR_MESSAGE
-            );
-            if (!(props instanceof TableWrapper<?>)) {
-                props = new CacheableTable<>((Table<?>)props);
+            if (props instanceof TableImplementor<?>) {
+                props = new UntypedTableProxy<>((TableImplementor<?>)props);
+            } else {
+                props = ((TableProxy<?>)props).__disableJoin(JOIN_DISABLED_REASON);
             }
         }
         this.props = (P)props;
@@ -62,52 +57,6 @@ public class FilterArgsImpl<P extends Props> implements FilterArgs<P> {
     @Override
     public @NotNull P getTable() {
         return props;
-    }
-
-    @Override
-    public <T extends Table<?>, R> ConfigurableSubQuery<R> createSubQuery(
-            Class<T> tableType,
-            BiFunction<MutableSubQuery, T, ConfigurableSubQuery<R>> block
-    ) {
-        if (forCache) {
-            throw new IllegalStateException(CACHEABLE_FILTER_SUB_QUERY_ERROR_MESSAGE);
-        }
-        return sortable.createSubQuery(tableType, block);
-    }
-
-    @Override
-    public <T extends Table<?>> MutableSubQuery createWildSubQuery(
-            Class<T> tableType,
-            BiConsumer<MutableSubQuery, T> block
-    ) {
-        if (forCache) {
-            throw new IllegalStateException(CACHEABLE_FILTER_SUB_QUERY_ERROR_MESSAGE);
-        }
-        return sortable.createWildSubQuery(tableType, block);
-    }
-
-    @Override
-    public <SE, ST extends TableEx<SE>, TE, TT extends TableEx<TE>, R> ConfigurableSubQuery<R> createAssociationSubQuery(
-            Class<ST> sourceTableType,
-            Function<ST, TT> targetTableGetter,
-            BiFunction<MutableSubQuery, AssociationTableEx<SE, ST, TE, TT>, ConfigurableSubQuery<R>> block
-    ) {
-        if (forCache) {
-            throw new IllegalStateException(CACHEABLE_FILTER_SUB_QUERY_ERROR_MESSAGE);
-        }
-        return sortable.createAssociationSubQuery(sourceTableType, targetTableGetter, block);
-    }
-
-    @Override
-    public <SE, ST extends TableEx<SE>, TE, TT extends TableEx<TE>, R> MutableSubQuery createAssociationWildSubQuery(
-            Class<ST> sourceTableType,
-            Function<ST, TT> targetTableGetter,
-            BiConsumer<MutableSubQuery, AssociationTableEx<SE, ST, TE, TT>> block
-    ) {
-        if (forCache) {
-            throw new IllegalStateException(CACHEABLE_FILTER_SUB_QUERY_ERROR_MESSAGE);
-        }
-        return sortable.createAssociationWildSubQuery(sourceTableType, targetTableGetter, block);
     }
 
     @Override
@@ -128,16 +77,34 @@ public class FilterArgsImpl<P extends Props> implements FilterArgs<P> {
         return sortable.orderBy(orders);
     }
 
+    @Override
+    public MutableSubQuery createSubQuery(TableProxy<?> table) {
+        return sortable.createSubQuery(table);
+    }
+
+    @Override
+    public <SE, ST extends TableEx<SE>, TE, TT extends TableEx<TE>>
+    MutableSubQuery createAssociationSubQuery(AssociationTable<SE, ST, TE, TT> table) {
+        return sortable.createAssociationSubQuery(table);
+    }
+
     public AbstractMutableQueryImpl unwrap() {
         return (AbstractMutableQueryImpl) sortable;
     }
 
-    private static class CacheableTable<E> implements TableWrapper<E> {
+    private static class UntypedTableProxy<E> implements TableProxy<E> {
 
         private final TableImplementor<E> table;
 
-        private CacheableTable(Table<E> table) {
-            this.table = TableWrappers.unwrap(table);
+        private final String joinDisabledReason;
+
+        UntypedTableProxy(TableImplementor<E> table) {
+            this(table, JOIN_DISABLED_REASON);
+        }
+
+        UntypedTableProxy(TableImplementor<E> table, String joinDisabledReason) {
+            this.table = table;
+            this.joinDisabledReason = joinDisabledReason;
         }
 
         @Override
@@ -152,47 +119,47 @@ public class FilterArgsImpl<P extends Props> implements FilterArgs<P> {
 
         @Override
         public <XT extends Table<?>> XT join(String prop) {
-            throw new IllegalStateException(CACHEABLE_TABLE_JOIN_ERROR_MESSAGE);
+            throw new IllegalStateException(joinDisabledReason);
         }
 
         @Override
         public <XT extends Table<?>> XT join(String prop, JoinType joinType) {
-            throw new IllegalStateException(CACHEABLE_TABLE_JOIN_ERROR_MESSAGE);
+            throw new IllegalStateException(joinDisabledReason);
         }
 
         @Override
         public <XT extends Table<?>> XT join(String prop, JoinType joinType, ImmutableType treatedAs) {
-            throw new IllegalStateException(CACHEABLE_TABLE_JOIN_ERROR_MESSAGE);
+            throw new IllegalStateException(joinDisabledReason);
         }
 
         @Override
         public <XT extends Table<?>> XT inverseJoin(ImmutableProp prop) {
-            throw new IllegalStateException(CACHEABLE_TABLE_JOIN_ERROR_MESSAGE);
+            throw new IllegalStateException(joinDisabledReason);
         }
 
         @Override
         public <XT extends Table<?>> XT inverseJoin(ImmutableProp prop, JoinType joinType) {
-            throw new IllegalStateException(CACHEABLE_TABLE_JOIN_ERROR_MESSAGE);
+            throw new IllegalStateException(joinDisabledReason);
         }
 
         @Override
         public <XT extends Table<?>> XT inverseJoin(TypedProp.Association<?, ?> prop) {
-            throw new IllegalStateException(CACHEABLE_TABLE_JOIN_ERROR_MESSAGE);
+            throw new IllegalStateException(joinDisabledReason);
         }
 
         @Override
         public <XT extends Table<?>> XT inverseJoin(TypedProp.Association<?, ?> prop, JoinType joinType) {
-            throw new IllegalStateException(CACHEABLE_TABLE_JOIN_ERROR_MESSAGE);
+            throw new IllegalStateException(joinDisabledReason);
         }
 
         @Override
         public <XT extends Table<?>> XT inverseJoin(Class<XT> targetTableType, Function<XT, ? extends Table<?>> backPropBlock) {
-            throw new IllegalStateException(CACHEABLE_TABLE_JOIN_ERROR_MESSAGE);
+            throw new IllegalStateException(joinDisabledReason);
         }
 
         @Override
         public <XT extends Table<?>> XT inverseJoin(Class<XT> targetTableType, Function<XT, ? extends Table<?>> backPropBlock, JoinType joinType) {
-            throw new IllegalStateException(CACHEABLE_TABLE_JOIN_ERROR_MESSAGE);
+            throw new IllegalStateException(joinDisabledReason);
         }
 
         @Override
@@ -231,13 +198,29 @@ public class FilterArgsImpl<P extends Props> implements FilterArgs<P> {
         }
 
         @Override
-        public TableImplementor<E> unwrap() {
+        public Table<?> __parent() {
+            return table.getParent();
+        }
+
+        @Override
+        public ImmutableProp __prop() {
+            return table.getJoinProp();
+        }
+
+        @Override
+        public TableImplementor<E> __unwrap() {
             return table;
         }
 
         @Override
-        public String getJoinDisabledReason() {
-            return CACHEABLE_TABLE_JOIN_ERROR_MESSAGE;
+        public TableImplementor<E> __resolve(RootTableResolver resolver) {
+            return null;
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public <P extends TableProxy<E>> P __disableJoin(String reason) {
+            return (P) new UntypedTableProxy<>(table, reason);
         }
     }
 }
