@@ -20,7 +20,7 @@ public class BookStoreRepository {
 
     public List<BookStore> find(@Nullable String name) {
 
-        BookStoreTable store = new BookStoreTable();
+        BookStoreTable store = BookStoreTable.$;
 
         return sqlClient
                 .createQuery(store)
