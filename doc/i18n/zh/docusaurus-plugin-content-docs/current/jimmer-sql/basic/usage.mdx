@@ -6,6 +6,19 @@ title: 快速上手
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
+:::tip
+此文档仅仅描述在不使用spring-boot的情况下如何以最原始的方式使用Jimmer。
+
+从0.6.x开始，Jimmer整合spring-data并提供spring-boot-starter。
+
+- 进一步降低使用难度，后端开发变得极其简单
+- 提供前后端免对接的服务。
+
+对于这种全新的更简单的使用方式，请参考[使用Spring Boot Starter](../spring-boot)
+
+如果你想在非spring环境下使用jimmer的更多细节，可以继续阅读此文。
+:::
+
 jimmer-sql内容相对较多，后续文章会逐步讲解。本文对其部分功能进行一个简单的罗列，让读者有一个感性的认知。
 
 ## 导入依赖
@@ -16,8 +29,8 @@ jimmer-sql内容相对较多，后续文章会逐步讲解。本文对其部分�
 ```groovy title="build.gradle"
 depdencies {
     
-    implementation 'org.babyfish.jimmer:jimmer-sql:0.6.5'
-    annotationProcessor 'org.babyfish.jimmer:jimmer-apt:0.6.5'
+    implementation 'org.babyfish.jimmer:jimmer-sql:0.6.7'
+    annotationProcessor 'org.babyfish.jimmer:jimmer-apt:0.6.7'
 
     runtimeOnly 'com.h2database:h2:2.1.212'
 }
@@ -31,7 +44,7 @@ depdencies {
     <dependency>
         <groupId>org.babyfish.jimmer</groupId>
         <artifactId>jimmer-sql</artifactId>
-        <version>0.6.5</version>
+        <version>0.6.7</version>
     </dependency>
     <dependency>
         <groupId>com.h2database</groupId>
@@ -52,7 +65,7 @@ depdencies {
                     <path>
                         <groupId>org.babyfish.jimmer</groupId>
                         <artifactId>jimmer-apt</artifactId>
-                        <version>0.6.5</version>
+                        <version>0.6.7</version>
                     </path>
                 </annotationProcessorPaths>
             </configuration>
@@ -74,10 +87,10 @@ plugins {
 depdencies {
     
     // 第二步: 添加jimmer-sql-kotlin
-    implementation("org.babyfish.jimmer:jimmer-sql-kotlin:0.6.5")
+    implementation("org.babyfish.jimmer:jimmer-sql-kotlin:0.6.7")
 
     // 第三步: 应用ksp插件
-	ksp("org.babyfish.jimmer:jimmer-ksp:0.6.5")
+	ksp("org.babyfish.jimmer:jimmer-ksp:0.6.7")
 
     runtimeOnly("com.h2database:h2:2.1.212")
 
@@ -103,7 +116,7 @@ kotlin {
     <dependency>
         <groupId>org.babyfish.jimmer</groupId>
         <artifactId>jimmer-sql-kotlin</artifactId>
-        <version>0.6.5</version>
+        <version>0.6.7</version>
     </dependency>
     <dependency>
         <groupId>com.h2database</groupId>
@@ -152,7 +165,7 @@ kotlin {
                 <dependency>
                     <groupId>org.babyfish.jimmer</groupId>
                     <artifactId>jimmer-ksp</artifactId>
-                    <version>0.6.5</version>
+                    <version>0.6.7</version>
                 </dependency>
             </dependencies>
         </plugin>
