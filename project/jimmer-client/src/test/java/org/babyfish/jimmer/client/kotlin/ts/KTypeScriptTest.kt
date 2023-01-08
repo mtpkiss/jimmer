@@ -1,9 +1,9 @@
 package org.babyfish.jimmer.client.kotlin.ts
 
+import org.babyfish.jimmer.client.generator.Context
 import org.babyfish.jimmer.client.generator.ts.*
 import org.babyfish.jimmer.client.kotlin.model.*
 import org.babyfish.jimmer.client.kotlin.service.KBookService
-import org.babyfish.jimmer.client.kotlin.service.KBookStoreService
 import org.babyfish.jimmer.client.meta.Constants
 import org.babyfish.jimmer.client.meta.StaticObjectType
 import org.babyfish.jimmer.meta.ImmutableType
@@ -45,7 +45,7 @@ class KTypeScriptTest {
         val out = ByteArrayOutputStream()
         val ctx = createContext(out)
         val service = Constants.KOTLIN_METADATA.services[KBookService::class.java]
-        ServiceWriter(ctx, service, false).flush()
+        ServiceWriter(ctx, service).flush()
         val code = out.toString()
         Assertions.assertEquals(
             "import type { KBook } from '../model/entities';\n" +
@@ -248,10 +248,11 @@ class KTypeScriptTest {
     fun testBookDto() {
         val out = ByteArrayOutputStream()
         val ctx = createContext(out)
-        DtoWriter(ctx, KBook::class.java, ctx.dtoMap[KBook::class.java]).flush()
+        DtoWriter(ctx, KBook::class.java).flush()
         val code = out.toString()
         Assertions.assertEquals(
             "import type { KGender } from '../enums';\n" +
+                "import type { KCoordinate } from '../entities';\n" +
                 "\n" +
                 "export type KBookDto = {\n" +
                 "    'KBookService/SIMPLE_FETCHER': {\n" +
@@ -265,7 +266,8 @@ class KTypeScriptTest {
                 "        readonly price?: number, \n" +
                 "        readonly store?: {\n" +
                 "            readonly id: number, \n" +
-                "            readonly name?: string\n" +
+                "            readonly name?: string, \n" +
+                "            readonly coordinate: KCoordinate\n" +
                 "        }, \n" +
                 "        readonly authors: ReadonlyArray<{\n" +
                 "            readonly id: number, \n" +
@@ -283,10 +285,11 @@ class KTypeScriptTest {
     fun testKAuthorDto() {
         val out = ByteArrayOutputStream()
         val ctx = createContext(out)
-        DtoWriter(ctx, KAuthor::class.java, ctx.dtoMap[KAuthor::class.java]).flush()
+        DtoWriter(ctx, KAuthor::class.java).flush()
         val code = out.toString()
         Assertions.assertEquals(
             "import type { KGender } from '../enums';\n" +
+                "import type { KCoordinate } from '../entities';\n" +
                 "\n" +
                 "export type KAuthorDto = {\n" +
                 "    'KBookService/AUTHOR_FETCHER': {\n" +
@@ -301,7 +304,8 @@ class KTypeScriptTest {
                 "            readonly price?: number, \n" +
                 "            readonly store?: {\n" +
                 "                readonly id: number, \n" +
-                "                readonly name?: string\n" +
+                "                readonly name?: string, \n" +
+                "                readonly coordinate: KCoordinate\n" +
                 "            }\n" +
                 "        }>\n" +
                 "    }\n" +
@@ -314,7 +318,7 @@ class KTypeScriptTest {
     fun testKBookStoreDto() {
         val out = ByteArrayOutputStream()
         val ctx = createContext(out)
-        DtoWriter(ctx, KBookStore::class.java, ctx.dtoMap[KBookStore::class.java]).flush()
+        DtoWriter(ctx, KBookStore::class.java).flush()
         val code = out.toString()
         Assertions.assertEquals(
             "import type { KCoordinate } from '../entities';\n" +
@@ -387,7 +391,7 @@ class KTypeScriptTest {
         )
     }
 
-    private fun createContext(out: OutputStream): Context {
-        return Context(Constants.KOTLIN_METADATA, out, "Api", 4)
+    private fun createContext(out: OutputStream): TsContext {
+        return TsContext(Constants.KOTLIN_METADATA, out, "Api", 4, false)
     }
 }
