@@ -27,6 +27,10 @@ const config = {
     locales: ['en', 'zh'],
   },
 
+  themes: [
+    require.resolve("@easyops-cn/docusaurus-search-local")
+  ],
+
   presets: [
     [
       'classic',
@@ -78,6 +82,10 @@ const config = {
             label: 'GitHub',
             position: 'right',
           },
+          {
+            type: 'search',
+            position: 'right',
+          }
         ],
       },
       footer: {
@@ -99,8 +107,8 @@ const config = {
         theme: lightCodeTheme,
         darkTheme: darkCodeTheme,
         additionalLanguages: ['java', 'kotlin', 'groovy', 'sql', 'cpp', 'kotlin', 'graphql'],
-      },
-    }),
+      }
+    })
 };
 
 module.exports = config;

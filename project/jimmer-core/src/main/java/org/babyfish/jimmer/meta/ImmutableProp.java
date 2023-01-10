@@ -1,5 +1,6 @@
 package org.babyfish.jimmer.meta;
 
+import org.babyfish.jimmer.jackson.Converter;
 import org.babyfish.jimmer.sql.DissociateAction;
 import org.babyfish.jimmer.sql.meta.Storage;
 import org.jetbrains.annotations.NotNull;
@@ -39,6 +40,8 @@ public interface ImmutableProp {
 
     <A extends Annotation> A getAnnotation(Class<A> annotationType);
 
+    Annotation[] getAnnotations();
+
     <A extends Annotation> A[] getAnnotations(Class<A> annotationType);
 
     Annotation getAssociationAnnotation();
@@ -46,6 +49,8 @@ public interface ImmutableProp {
     boolean isTransient();
 
     boolean hasTransientResolver();
+
+    Converter<?> getConverter();
 
     @NotNull
     DissociateAction getDissociateAction();
