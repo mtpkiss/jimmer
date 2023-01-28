@@ -2,9 +2,7 @@ package org.babyfish.jimmer.apt.generator;
 
 import com.squareup.javapoet.*;
 import org.babyfish.jimmer.apt.GeneratorException;
-import org.babyfish.jimmer.apt.meta.ImmutableProp;
-import org.babyfish.jimmer.apt.meta.StaticDeclaration;
-import org.babyfish.jimmer.apt.meta.StaticProp;
+import org.babyfish.jimmer.apt.meta.*;
 import org.babyfish.jimmer.pojo.AutoScalarStrategy;
 import org.babyfish.jimmer.runtime.ImmutableSpi;
 import org.babyfish.jimmer.sql.Id;
@@ -60,6 +58,22 @@ public class StaticDeclarationGenerator {
         this.innerClassName = innerClassName;
         this.parent = parent;
 
+        Set<ImmutableProp> possibleAutoScalars = new HashSet<>();
+        for (ImmutableType type = declaration.getImmutableType(); type != null; type = type.getSuperType()) {
+            AutoScalarStrategy strategy = type.getAutoScalarStrategy(declaration.getAlias());
+            if (strategy == AutoScalarStrategy.NONE) {
+                break;
+            }
+            for (ImmutableProp prop : type.getDeclaredProps().values()) {
+                if (!prop.isAssociation(true) && !prop.isTransient()) {
+                    possibleAutoScalars.add(prop);
+                }
+            }
+            if (strategy == AutoScalarStrategy.DECLARED) {
+                break;
+            }
+        }
+
         List<StaticProp> props = new ArrayList<>();
         String alias = declaration.getAlias();
         boolean hasKey = declaration
@@ -69,24 +83,33 @@ public class StaticDeclarationGenerator {
                 .stream()
                 .anyMatch(it -> it.getAnnotation(Key.class) != null);
         for (ImmutableProp prop : declaration.getImmutableType().getProps().values()) {
-            if (prop.isTransient()) {
-                continue;
-            }
             StaticProp staticProp = prop.getStaticProp(alias);
             if (staticProp == null) {
-                if (!prop.isAssociation(true)) {
-                    boolean all = declaration.getAutoScalarStrategy() == AutoScalarStrategy.ALL;
-                    boolean declared = declaration.getAutoScalarStrategy() == AutoScalarStrategy.DECLARED &&
-                            prop.getDeclaringType() == declaration.getImmutableType();
-                    if (all || declared) {
-                        staticProp = new StaticProp(prop, alias, prop.getName(), true, declaration.isAllOptional(), false, "");
-                        if (!staticProp.isOptional() && prop.getAnnotation(Id.class) != null && hasKey) {
-                            staticProp = staticProp.optional(true);
-                        }
-                        props.add(staticProp);
+                if (possibleAutoScalars.contains(prop)) {
+                    staticProp = new StaticProp(prop, alias, prop.getName(), true, declaration.isAllOptional(), false, "");
+                    if (!staticProp.isOptional() && prop.getAnnotation(Id.class) != null && hasKey) {
+                        staticProp = staticProp.optional(true);
                     }
+                    props.add(staticProp);
                 }
             } else if (staticProp.isEnabled()) {
+                if (prop.isTransient()) {
+                    if (isInput()) {
+                        throw new MetaException(
+                                "Illegal property \"" +
+                                        prop +
+                                        "\", the transient property of input type can not be decorated by @Static"
+                        );
+                    }
+                    if (!prop.hasTransientResolver()) {
+                        throw new MetaException(
+                                "Illegal property \"" +
+                                        prop +
+                                        "\", if a property is decorated by both @Transient and @Static," +
+                                        "its transient resolver must be specified"
+                        );
+                    }
+                }
                 props.add(staticProp.optional(declaration.isAllOptional()));
             }
         }
@@ -127,15 +150,13 @@ public class StaticDeclarationGenerator {
         String simpleName = getSimpleName();
         typeBuilder = TypeSpec
                 .classBuilder(simpleName)
-                .addModifiers(Modifier.PUBLIC);
-        if (isInput()) {
-            typeBuilder.addSuperinterface(
-                    ParameterizedTypeName.get(
-                            Constants.INPUT_CLASS_NAME,
-                            declaration.getImmutableType().getClassName()
-                    )
-            );
-        }
+                .addModifiers(Modifier.PUBLIC)
+                .addSuperinterface(
+                        ParameterizedTypeName.get(
+                                isInput() ? Constants.INPUT_CLASS_NAME : Constants.STATIC_CLASS_NAME,
+                                declaration.getImmutableType().getClassName()
+                        )
+                );
         if (innerClassName != null) {
             typeBuilder.addModifiers(Modifier.STATIC);
             addMembers();
@@ -168,6 +189,8 @@ public class StaticDeclarationGenerator {
 
     private void addMembers() {
 
+        addMetadata();
+
         for (StaticProp prop : props) {
             addField(prop);
         }
@@ -193,6 +216,50 @@ public class StaticDeclarationGenerator {
                 ).generate();
             }
         }
+    }
+
+    private void addMetadata() {
+        FieldSpec.Builder builder = FieldSpec
+                .builder(
+                        ParameterizedTypeName.get(
+                                Constants.STATIC_METADATA_CLASS_NAME,
+                                declaration.getImmutableType().getClassName(),
+                                getClassName()
+                        ),
+                        "METADATA"
+                )
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL);
+        CodeBlock.Builder cb = CodeBlock
+                .builder()
+                .indent()
+                .add("\n")
+                .add(
+                        "new $T<$T, $T>(\n",
+                        Constants.STATIC_METADATA_CLASS_NAME,
+                        declaration.getImmutableType().getClassName(),
+                        getClassName()
+                )
+                .indent()
+                .add("$T.$L", declaration.getImmutableType().getFetcherClassName(), "$")
+                .indent();
+        for (StaticProp prop : props) {
+            if (prop.getImmutableProp().getAnnotation(Id.class) == null) {
+                if (prop.getTarget() != null) {
+                    cb.add("\n.$N($T.METADATA.getFetcher())", prop.getImmutableProp().getName(), getPropElementName(prop));
+                } else {
+                    cb.add("\n.$N()", prop.getImmutableProp().getName());
+                }
+            }
+        }
+        cb
+                .add(",\n")
+                .unindent()
+                .add("$T::new\n", getClassName())
+                .unindent()
+                .unindent()
+                .add(")");
+        builder.initializer(cb.build());
+        typeBuilder.addField(builder.build());
     }
 
     private void addField(StaticProp prop) {
@@ -279,6 +346,7 @@ public class StaticDeclarationGenerator {
     private void addConverterConstructor() {
         MethodSpec.Builder builder = MethodSpec
                 .constructorBuilder()
+                .addModifiers(Modifier.PUBLIC)
                 .addParameter(
                         ParameterSpec
                                 .builder(declaration.getImmutableType().getClassName(), "base")
@@ -483,10 +551,8 @@ public class StaticDeclarationGenerator {
                 .methodBuilder("toEntity")
                 .addModifiers(Modifier.PUBLIC)
                 .returns(declaration.getImmutableType().getClassName())
-                .addStatement("return toEntity(null)");
-        if (isInput()) {
-            builder.addAnnotation(Override.class);
-        }
+                .addStatement("return toEntity(null)")
+                .addAnnotation(Override.class);
         typeBuilder.addMethod(builder.build());
     }
 
@@ -494,6 +560,7 @@ public class StaticDeclarationGenerator {
         MethodSpec.Builder builder = MethodSpec
                 .methodBuilder("toEntity")
                 .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(Override.class)
                 .addParameter(
                         ParameterSpec
                                 .builder(

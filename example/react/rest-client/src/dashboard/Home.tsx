@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { styled, useTheme } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import Drawer from '@mui/material/Drawer';
@@ -13,7 +12,11 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { Menu } from './Menu';
 import { Content } from './Content';
-import { useMediaQuery } from '@mui/material';
+import { Stack, useMediaQuery } from '@mui/material';
+import { TenantProvider } from './TenantContext';
+import { WhiteTextField } from './WhiteTextField';
+import { ChangeEvent, useCallback, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
 const drawerWidth = 240;
 
@@ -70,9 +73,11 @@ const DrawerHeader = styled('div')(({ theme }) => ({
 }));
 
 export function Home() {
+    
     const theme = useTheme();
+
     const md = useMediaQuery(theme.breakpoints.up('md'));
-    const [open, setOpen] = React.useState(md);
+    const [open, setOpen] = useState(md);
 
     const handleDrawerOpen = () => {
         setOpen(true);
@@ -81,6 +86,23 @@ export function Home() {
     const handleDrawerClose = () => {
         setOpen(false);
     };
+
+    const queryClient = useQueryClient();
+
+    const [tenant, setTenant] = useState<string | undefined>(() => {
+        const tenant = (window as any).__tenant;
+        return tenant !== undefined && tenant !== "" ? tenant : undefined;
+    });
+
+    const onTenantChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+        let tenant: string | undefined = e.target.value;
+        if (tenant === "") {
+            tenant = undefined;
+        }
+        setTenant(tenant);
+        (window as any).__tenant = tenant; // Used by `ApiInstance.ts`
+        queryClient.invalidateQueries();
+    }, [queryClient]);
 
     return (
         <Box sx={{ display: 'flex' }}>
@@ -96,9 +118,16 @@ export function Home() {
                     >
                         <MenuIcon />
                     </IconButton>
-                    <Typography variant="h6" noWrap component="div">
-                        Jimmer example REST client
-                    </Typography>
+                    <Stack direction="row" spacing={2} style={{width: '100%'}}>
+                        <Typography variant="h6" noWrap component="div" flex={1}>
+                            Jimmer example REST client
+                        </Typography>
+                        <WhiteTextField 
+                        label="Global tenant" 
+                        size="small"
+                        value={tenant}
+                        onChange={onTenantChange}/>
+                    </Stack>
                 </Toolbar>
             </AppBar>
             <Drawer
@@ -124,7 +153,9 @@ export function Home() {
             </Drawer>
             <Main open={open}>
                 <DrawerHeader />
-                <Content/>
+                <TenantProvider value={tenant}>
+                    <Content/>
+                </TenantProvider>
             </Main>
         </Box>
     );
