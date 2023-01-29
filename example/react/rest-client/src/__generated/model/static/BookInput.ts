@@ -1,10 +1,6 @@
-import type { TargetOf_chapters } from './';
-
-export interface CompositeBookInput {
+export interface BookInput {
     
     readonly authorIds: ReadonlyArray<number>;
-    
-    readonly chapters: ReadonlyArray<TargetOf_chapters>;
     
     readonly createdTime: string;
     

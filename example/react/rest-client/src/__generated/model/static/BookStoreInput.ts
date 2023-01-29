@@ -1,12 +1,12 @@
-export interface TargetOf_chapters {
+export interface BookStoreInput {
     
     readonly createdTime: string;
     
     readonly id?: number;
     
-    readonly index: number;
-    
     readonly modifiedTime: string;
     
-    readonly title: string;
+    readonly name: string;
+    
+    readonly website?: string;
 }
