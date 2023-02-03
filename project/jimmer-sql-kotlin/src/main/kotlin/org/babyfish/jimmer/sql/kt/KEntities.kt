@@ -46,18 +46,18 @@ interface KEntities {
         block: (SortDsl<E>.() -> Unit)? = null
     ): List<E>
 
-    fun <E: Any, S: Static<E>> findStaticById(staticType: KClass<S>, id: Any): S?
+    fun <E: Any, S: Static<E>> findStaticObjectById(staticType: KClass<S>, id: Any): S?
 
-    fun <E: Any, S: Static<E>> findStaticByIds(staticType: KClass<S>, ids: Collection<*>): List<S>
+    fun <E: Any, S: Static<E>> findStaticObjectsByIds(staticType: KClass<S>, ids: Collection<*>): List<S>
 
-    fun <ID, E: Any, S: Static<E>> findStaticMapByIds(staticType: KClass<S>, ids: Collection<ID>): Map<ID, S>
+    fun <ID, E: Any, S: Static<E>> findStaticObjectMapByIds(staticType: KClass<S>, ids: Collection<ID>): Map<ID, S>
 
-    fun <E: Any, S: Static<E>> findAllStatic(
+    fun <E: Any, S: Static<E>> findAllStaticObjects(
         staticType: KClass<S>,
         block: (SortDsl<E>.() -> Unit)? = null
     ): List<S>
 
-    fun <E: Any, S: Static<E>> findStaticByExample(
+    fun <E: Any, S: Static<E>> findStaticObjectsByExample(
         staticType: KClass<S>,
         example: KExample<E>,
         block: (SortDsl<E>.() -> Unit)? = null

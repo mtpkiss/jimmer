@@ -1,10 +1,8 @@
+export type { BookStoreInput } from './BookStoreInput';
+export type { TargetOf_chapters } from './TargetOf_chapters';
 export type { Tuple2 } from './Tuple2';
+export type { Page } from './Page';
+export type { Pageable } from './Pageable';
 export type { Sort } from './Sort';
 export type { CompositeBookInput } from './CompositeBookInput';
-export type { AuthorInput } from './AuthorInput';
-export type { TargetOf_chapters } from './TargetOf_chapters';
-export type { Pageable } from './Pageable';
-export type { Unit } from './Unit';
-export type { Page } from './Page';
-export type { BookStoreInput } from './BookStoreInput';
 export type { BookInput } from './BookInput';

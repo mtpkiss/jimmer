@@ -39,7 +39,7 @@ dependencies {
 }
 
 tasks.withType(JavaCompile::class) {
-    options.compilerArgs.add("-parameters")
+    options.compilerArgs.add("-Ajimmer.dtoDirs=src/test/dto")
 }
 
 tasks.getByName<Test>("test") {

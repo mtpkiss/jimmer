@@ -27,7 +27,7 @@ interface KRepository<E: Any, ID: Any> : PagingAndSortingRepository<E, ID> {
 
     fun findNullable(id: ID, fetcher: Fetcher<E>? = null): E?
 
-    fun <S: Static<E>> findStaticNullable(staticType: KClass<S>, id: ID): S?
+    fun <S: Static<E>> findNullableStaticObject(staticType: KClass<S>, id: ID): S?
 
     override fun findById(id: ID): Optional<E> =
         Optional.ofNullable(findNullable(id))
@@ -35,8 +35,8 @@ interface KRepository<E: Any, ID: Any> : PagingAndSortingRepository<E, ID> {
     fun findById(id: ID, fetcher: Fetcher<E>): Optional<E> =
         Optional.ofNullable(findNullable(id, fetcher))
 
-    fun <S: Static<E>> findStaticById(staticType: KClass<S>, id: ID): Optional<S> =
-        Optional.ofNullable(findStaticNullable(staticType, id))
+    fun <S: Static<E>> findStaticObjectById(staticType: KClass<S>, id: ID): Optional<S> =
+        Optional.ofNullable(findNullableStaticObject(staticType, id))
 
     @AliasFor("findAllById")
     fun findByIds(ids: Iterable<ID>, fetcher: Fetcher<E>? = null): List<E>
@@ -45,25 +45,25 @@ interface KRepository<E: Any, ID: Any> : PagingAndSortingRepository<E, ID> {
     override fun findAllById(ids: Iterable<ID>): List<E> = 
         findByIds(ids)
 
-    fun <S: Static<E>> findStaticByIds(staticType: KClass<S>, ids: Iterable<ID>): List<S>
+    fun <S: Static<E>> findStaticObjectsByIds(staticType: KClass<S>, ids: Iterable<ID>): List<S>
 
     fun findMapByIds(ids: Iterable<ID>, fetcher: Fetcher<E>? = null): Map<ID, E>
 
-    fun <S: Static<E>> findStaticMapByIds(staticType: KClass<S>, ids: Iterable<ID>): Map<ID, S>
+    fun <S: Static<E>> findStaticObjectMapByIds(staticType: KClass<S>, ids: Iterable<ID>): Map<ID, S>
 
     override fun findAll(): List<E> =
         findAll(null, null)
 
     fun findAll(fetcher: Fetcher<E>? = null, block: (SortDsl<E>.() -> Unit)? = null): List<E>
 
-    fun <S: Static<E>> findAllStatic(staticType: KClass<S>, block: (SortDsl<E>.() -> Unit)? = null): List<S>
+    fun <S: Static<E>> findAllStaticObjects(staticType: KClass<S>, block: (SortDsl<E>.() -> Unit)? = null): List<S>
 
     override fun findAll(sort: Sort): List<E> =
         findAll(null, sort)
 
     fun findAll(fetcher: Fetcher<E>? = null, sort: Sort): List<E>
 
-    fun <S: Static<E>> findAllStatic(staticType: KClass<S>, sort: Sort): List<S>
+    fun <S: Static<E>> findAllStaticObjects(staticType: KClass<S>, sort: Sort): List<S>
 
     fun findAll(
         pageIndex: Int,
@@ -72,7 +72,7 @@ interface KRepository<E: Any, ID: Any> : PagingAndSortingRepository<E, ID> {
         block: (SortDsl<E>.() -> Unit)? = null
     ): Page<E>
 
-    fun <S: Static<E>> findAllStatic(
+    fun <S: Static<E>> findAllStaticObjects(
         staticType: KClass<S>,
         pageIndex: Int,
         pageSize: Int,
@@ -86,7 +86,7 @@ interface KRepository<E: Any, ID: Any> : PagingAndSortingRepository<E, ID> {
         sort: Sort
     ): Page<E>
 
-    fun <S: Static<E>> findAllStatic(
+    fun <S: Static<E>> findAllStaticObjects(
         staticType: KClass<S>,
         pageIndex: Int,
         pageSize: Int,
@@ -97,7 +97,7 @@ interface KRepository<E: Any, ID: Any> : PagingAndSortingRepository<E, ID> {
 
     fun findAll(pageable: Pageable, fetcher: Fetcher<E>? = null): Page<E>
 
-    fun <S: Static<E>> findAllStatic(staticType: KClass<S>, pageable: Pageable): Page<S>
+    fun <S: Static<E>> findAllStaticObjects(staticType: KClass<S>, pageable: Pageable): Page<S>
 
     override fun existsById(id: ID): Boolean =
         findNullable(id) != null

@@ -12,7 +12,6 @@ import org.babyfish.jimmer.sql.kt.ast.expression.KPropExpression
 import org.babyfish.jimmer.sql.kt.ast.expression.impl.NonNullPropExpressionImpl
 import org.babyfish.jimmer.sql.kt.ast.expression.impl.NullablePropExpressionImpl
 import org.babyfish.jimmer.sql.kt.ast.table.KNonNullTableEx
-import org.babyfish.jimmer.sql.kt.ast.table.KTableEx
 import org.babyfish.jimmer.sql.kt.ast.table.KWeakJoin
 import kotlin.reflect.KClass
 import kotlin.reflect.KProperty1

@@ -47,15 +47,15 @@ public interface Entities {
 
     <E> List<E> findByExample(Example<E> example, Fetcher<E> fetcher, TypedProp.Scalar<?, ?> ... sortedProps);
 
-    <E, S extends Static<E>> S findStaticById(Class<S> staticType, Object id);
+    <E, S extends Static<E>> S findStaticObjectById(Class<S> staticType, Object id);
 
-    <E, S extends Static<E>> List<S> findStaticByIds(Class<S> staticType, Collection<?> ids);
+    <E, S extends Static<E>> List<S> findStaticObjectsByIds(Class<S> staticType, Collection<?> ids);
 
-    <ID, E, S extends Static<E>> Map<ID, S> findStaticMapByIds(Class<S> staticType, Collection<ID> ids);
+    <ID, E, S extends Static<E>> Map<ID, S> findStaticObjectMapByIds(Class<S> staticType, Collection<ID> ids);
 
-    <E, S extends Static<E>> List<S> findAllStatic(Class<S> staticType, TypedProp.Scalar<?, ?> ... sortedProps);
+    <E, S extends Static<E>> List<S> findAllStaticObjects(Class<S> staticType, TypedProp.Scalar<?, ?> ... sortedProps);
 
-    <E, S extends Static<E>> List<S> findStaticByExample(Class<S> staticType, Example<E> example, TypedProp.Scalar<?, ?>... sortedProps);
+    <E, S extends Static<E>> List<S> findStaticObjectsByExample(Class<S> staticType, Example<E> example, TypedProp.Scalar<?, ?>... sortedProps);
 
     default <E> SimpleSaveResult<E> save(E entity) {
         return saveCommand(entity).execute();
