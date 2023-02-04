@@ -2,6 +2,8 @@ plugins {
     java
     kotlin("jvm") version "1.6.10"
     antlr
+    id("maven-publish")
+    id("signing")
 }
 
 group = "org.babyfish.jimmer"
