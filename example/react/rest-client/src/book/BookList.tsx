@@ -89,7 +89,7 @@ export const BookList:FC = memo(() => {
             headerName: 'Actions', 
             type: 'actions',
             getActions: params => [
-                <GridActionsCellItem icon={<EditIcon/>} label="Edit" onClick={() => onEdit(params.row)} disabled={tenant === undefined}/>,
+                <GridActionsCellItem icon={<EditIcon/>} label="Edit" onClick={() => onEdit(params.row)}/>,
                 <GridActionsCellItem icon={<DeleteIcon/>} label="Delete" onClick={e => onDelete(params.row, e)}/>
             ]
         }
@@ -156,7 +156,7 @@ export const BookList:FC = memo(() => {
 
     return (
         <Stack spacing={2}>
-            {tenant === undefined && <Alert severity="warning">Add/Edit can only be enabled when global tenant is set, please enter it(eg: a)</Alert>}
+            {tenant === undefined && <Alert severity="warning">Add/Edit can only be enabled when global tenant is set, please specify it(eg: a)</Alert>}
             <Stack direction="row" spacing={2}>
                 <TextField label="Search by book name" value={options.name} onChange={onNameChange}/>
                 <TextField label="Search by store name" value={options.storeName} onChange={onStoreNameChange}/>

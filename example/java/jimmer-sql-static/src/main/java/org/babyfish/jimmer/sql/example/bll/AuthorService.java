@@ -4,6 +4,7 @@ import org.babyfish.jimmer.spring.model.SortUtils;
 import org.babyfish.jimmer.sql.example.dal.AuthorRepository;
 import org.babyfish.jimmer.sql.example.model.*;
 import org.babyfish.jimmer.sql.example.model.dto.*;
+import org.jetbrains.annotations.Nullable;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -41,20 +42,10 @@ public class AuthorService {
         );
     }
 
-    @GetMapping("/complexList")
-    public List<ComplexAuthor> findComplexAuthors(
-            @RequestParam(defaultValue = "firstName asc, lastName asc") String sortCode,
-            @RequestParam(required = false) String firstName,
-            @RequestParam(required = false) String lastName,
-            @RequestParam(required = false) Gender gender
-    ) {
-        return authorRepository.findByFirstNameAndLastNameAndGender(
-                SortUtils.toSort(sortCode),
-                firstName,
-                lastName,
-                gender,
-                ComplexAuthor.class
-        );
+    @GetMapping("/{id}")
+    @Nullable
+    public ComplexAuthor findComplexAuthor(@PathVariable("id") long id) {
+        return authorRepository.findNullableStaticObject(ComplexAuthor.class, id);
     }
 
     @PutMapping

@@ -7,6 +7,7 @@ import org.babyfish.jimmer.sql.example.model.*;
 import org.babyfish.jimmer.sql.example.model.dto.BookInput;
 import org.babyfish.jimmer.sql.example.model.dto.CompositeBookInput;
 import org.babyfish.jimmer.sql.fetcher.Fetcher;
+import org.jetbrains.annotations.Nullable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,23 +50,12 @@ public class BookService {
         );
     }
 
-    @GetMapping("/complexList")
-    public Page<@FetchBy("COMPLEX_FETCHER") Book> findComplexBooks(
-            @RequestParam(defaultValue = "0") int pageIndex,
-            @RequestParam(defaultValue = "5") int pageSize,
-            // The `sortCode` also support implicit join, like `store.name asc`
-            @RequestParam(defaultValue = "name asc, edition desc") String sortCode,
-            @RequestParam(required = false) String name,
-            @RequestParam(required = false) String storeName,
-            @RequestParam(required = false) String authorName
+    @GetMapping("/{id}")
+    @Nullable
+    public @FetchBy("COMPLEX_FETCHER") Book findComplexBook(
+            @PathVariable("id") long id
     ) {
-        return bookRepository.findBooks(
-                PageRequest.of(pageIndex, pageSize, SortUtils.toSort(sortCode)),
-                name,
-                storeName,
-                authorName,
-                COMPLEX_FETCHER
-        );
+        return bookRepository.findNullable(id, COMPLEX_FETCHER);
     }
 
     private static final Fetcher<Book> SIMPLE_FETCHER =
@@ -94,12 +84,12 @@ public class BookService {
                                     .allScalarFields()
                                     .avgPrice()
                     )
-                    .chapters(
-                            ChapterFetcher.$
-                                    .allScalarFields()
-                    )
                     .authors(
                             AuthorFetcher.$
+                                    .allScalarFields()
+                    )
+                    .chapters(
+                            ChapterFetcher.$
                                     .allScalarFields()
                     );
 

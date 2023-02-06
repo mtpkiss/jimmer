@@ -21,16 +21,16 @@ public abstract class TsCodeWriter extends CodeWriter<TsContext> {
 
     private static final Pattern SLASH_PATTERN = Pattern.compile("/");
 
-    private final Map<String, Set<String>> importMap = new HashMap<>();
+    private final Map<String, Set<String>> importMap = new TreeMap<>();
 
-    private final Map<String, Set<String>> importDataMap = new HashMap<>();
+    private final Map<String, Set<String>> importDataMap = new TreeMap<>();
 
     protected TsCodeWriter(TsContext ctx, File file) {
         super(ctx, file);
     }
 
     @Override
-    public void onImport(File file, boolean treatAsData) {
+    public void onImport(File file, boolean treatAsData, List<String> nestedNames) {
         String[] currentPaths =
                 this.file.getDir().isEmpty() ?
                         EMPTY_ARR :
@@ -65,9 +65,17 @@ public abstract class TsCodeWriter extends CodeWriter<TsContext> {
             builder.append('/').append(paths[i]);
         }
         String path = builder.toString();
+        String realName = file.getName();
+        if (nestedNames != null) {
+            String sp = ctx.nestedTypeSeparator();
+            for (String nestedName : nestedNames) {
+                realName += sp;
+                realName += nestedName;
+            }
+        }
         (treatAsData ? importDataMap : importMap)
-                .computeIfAbsent(path, it -> new LinkedHashSet<>())
-                .add(file.getName());
+                .computeIfAbsent(path, it -> new TreeSet<>())
+                .add(realName);
     }
 
     @Override

@@ -7,6 +7,7 @@ import org.babyfish.jimmer.apt.meta.ImmutableType;
 import org.babyfish.jimmer.apt.meta.MetaException;
 import org.babyfish.jimmer.dto.compiler.DtoAstException;
 import org.babyfish.jimmer.dto.compiler.DtoType;
+import org.babyfish.jimmer.error.ErrorFamily;
 import org.babyfish.jimmer.sql.Embeddable;
 import org.babyfish.jimmer.sql.Entity;
 import org.babyfish.jimmer.sql.MappedSuperclass;
@@ -30,7 +31,8 @@ import java.util.stream.Collectors;
 @SupportedAnnotationTypes({
         "org.babyfish.jimmer.Immutable",
         "org.babyfish.jimmer.sql.Entity",
-        "org.babyfish.jimmer.sql.MappedSuperclass"
+        "org.babyfish.jimmer.sql.MappedSuperclass",
+        "org.babyfish.jimmer.error.ErrorFamily"
 })
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
 public class ImmutableProcessor extends AbstractProcessor {
@@ -99,10 +101,6 @@ public class ImmutableProcessor extends AbstractProcessor {
             return true;
         }
 
-        if (roundEnv.getRootElements().isEmpty()) {
-            throw new IllegalArgumentException("Empty annotation processor task");
-        }
-
         Map<TypeElement, ImmutableType> immutableTypeMap = parseImmutableTypes(roundEnv);
         Map<ImmutableType, List<DtoType<ImmutableType, ImmutableProp>>> dtoTypeMap =
                 parseDtoTypes(immutableTypeMap.values());
@@ -117,6 +115,10 @@ public class ImmutableProcessor extends AbstractProcessor {
                 roundEnv
         );
         generateDtoTypes(dtoTypeMap);
+
+        List<TypeElement> errorElements = getErrorFamilies(roundEnv);
+        generateErrorType(errorElements);
+
         return true;
     }
 
@@ -190,6 +192,8 @@ public class ImmutableProcessor extends AbstractProcessor {
         }
         if (path.startsWith("file://")) {
             path = path.substring(7);
+        } else if (path.startsWith("file:/")) {
+            path = path.substring(6);
         }
         path = path.substring(0, path.lastIndexOf('/'));
         File file = new File(path);
@@ -260,6 +264,24 @@ public class ImmutableProcessor extends AbstractProcessor {
         return dtoMap;
     }
 
+    private List<TypeElement> getErrorFamilies(RoundEnvironment roundEnv) {
+        List<TypeElement> typeElements = new ArrayList<>();
+        for (Element element : roundEnv.getRootElements()) {
+            if (element.getAnnotation(ErrorFamily.class) != null) {
+                if (element.getKind() != ElementKind.ENUM) {
+                    throw new MetaException(
+                            "Illegal type \"" +
+                                    element +
+                                    "\", only enum can be decorated by @" +
+                                    ErrorFamily.class.getName()
+                    );
+                }
+                typeElements.add((TypeElement) element);
+            }
+        }
+        return typeElements;
+    }
+
     private void generateJimmerTypes(Collection<ImmutableType> immutableTypes, RoundEnvironment roundEnv) {
         for (ImmutableType immutableType : immutableTypes) {
             new DraftGenerator(
@@ -315,6 +337,12 @@ public class ImmutableProcessor extends AbstractProcessor {
             for (DtoType<ImmutableType, ImmutableProp> dtoType : dtoTypes) {
                 new DtoGenerator(dtoType, filer).generate();
             }
+        }
+    }
+
+    private void generateErrorType(List<TypeElement> typeElements) {
+        for (TypeElement typeElement : typeElements) {
+            new ErrorGenerator(typeElement, filer).generate();
         }
     }
 
