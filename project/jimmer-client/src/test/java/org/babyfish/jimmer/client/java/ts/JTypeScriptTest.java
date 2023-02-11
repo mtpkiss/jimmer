@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Collections;
 
 public class JTypeScriptTest {
 
@@ -43,6 +44,65 @@ public class JTypeScriptTest {
     }
 
     @Test
+    public void testModuleErrors() throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        TsContext ctx = createContext(out);
+        new ModuleErrorsWriter(ctx).flush();
+        String code = out.toString();
+        Assertions.assertEquals(
+                "export type AllErrors = \n" +
+                        "    {\n" +
+                        "        readonly family: \"BusinessError\",\n" +
+                        "        readonly code: \"GLOBAL_TENANT_REQUIRED\"\n" +
+                        "    } | \n" +
+                        "    {\n" +
+                        "        readonly family: \"BusinessError\",\n" +
+                        "        readonly code: \"ILLEGAL_PATH_NODES\",\n" +
+                        "        readonly \"pathNodes\": string\n" +
+                        "    } | \n" +
+                        "    {\n" +
+                        "        readonly family: \"BusinessError\",\n" +
+                        "        readonly code: \"OUT_OF_RANGE\",\n" +
+                        "        readonly \"min\": number,\n" +
+                        "        readonly \"max\": number\n" +
+                        "    }\n" +
+                        ";\n" +
+                        "\n" +
+                        "export type ApiErrors = {\n" +
+                        "    \"authorService\": {\n" +
+                        "        \"findComplexAuthor\": AllErrors & (\n" +
+                        "            {\n" +
+                        "                readonly family: 'BusinessError',\n" +
+                        "                readonly code: 'OUT_OF_RANGE',\n" +
+                        "                readonly [key:string]: any\n" +
+                        "            } | \n" +
+                        "            {\n" +
+                        "                readonly family: 'BusinessError',\n" +
+                        "                readonly code: 'ILLEGAL_PATH_NODES',\n" +
+                        "                readonly [key:string]: any\n" +
+                        "            }\n" +
+                        "        ),\n" +
+                        "        \"findSimpleAuthor\": AllErrors & (\n" +
+                        "            {\n" +
+                        "                readonly family: 'BusinessError',\n" +
+                        "                readonly code: 'GLOBAL_TENANT_REQUIRED',\n" +
+                        "                readonly [key:string]: any\n" +
+                        "            } | \n" +
+                        "            {\n" +
+                        "                readonly family: 'BusinessError',\n" +
+                        "                readonly code: 'OUT_OF_RANGE',\n" +
+                        "                readonly [key:string]: any\n" +
+                        "            }\n" +
+                        "        )\n" +
+                        "    },\n" +
+                        "    \"bookService\": {\n" +
+                        "    }\n" +
+                        "};\n",
+                code
+        );
+    }
+
+    @Test
     public void testBookService() throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         TsContext ctx = createContext(out);
@@ -53,7 +113,7 @@ public class JTypeScriptTest {
                 "import type { Dynamic, Executor } from '../';\n" +
                         "import type { AuthorDto, BookDto } from '../model/dto';\n" +
                         "import type { Book } from '../model/entities';\n" +
-                        "import type { BookInput, Page, StaticBook, Tuple2 } from '../model/static';\n" +
+                        "import type { BookInput, Page, Tuple2 } from '../model/static';\n" +
                         "\n" +
                         "/**\n" +
                         " * BookService interface\n" +
@@ -115,13 +175,6 @@ public class JTypeScriptTest {
                         "        return (await this.executor({uri, method: 'GET'})) as ReadonlyArray<BookDto['BookService/SIMPLE_FETCHER']>\n" +
                         "    }\n" +
                         "    \n" +
-                        "    async findStaticBook(options: BookServiceOptions['findStaticBook']): Promise<\n" +
-                        "        StaticBook\n" +
-                        "    > {\n" +
-                        "        let uri = '/java/staticBook';\n" +
-                        "        return (await this.executor({uri, method: 'GET'})) as StaticBook\n" +
-                        "    }\n" +
-                        "    \n" +
                         "    async findTuples(options: BookServiceOptions['findTuples']): Promise<\n" +
                         "        Page<Tuple2<BookDto['BookService/COMPLEX_FETCHER'], AuthorDto['BookService/AUTHOR_FETCHER'] | undefined>>\n" +
                         "    > {\n" +
@@ -164,7 +217,6 @@ public class JTypeScriptTest {
                         "        readonly maxPrice?: number\n" +
                         "    },\n" +
                         "    'findSimpleBooks': {},\n" +
-                        "    'findStaticBook': {readonly id: number},\n" +
                         "    'findTuples': {\n" +
                         "        \n" +
                         "        /**\n" +
@@ -196,7 +248,7 @@ public class JTypeScriptTest {
                 "import type { Dynamic, Executor } from '../';\n" +
                         "import type { Book } from '../model/entities';\n" +
                         "import type { Gender } from '../model/enums';\n" +
-                        "import type { BookInput, Page, StaticBook, Tuple2 } from '../model/static';\n" +
+                        "import type { BookInput, Page, Tuple2 } from '../model/static';\n" +
                         "\n" +
                         "/**\n" +
                         " * BookService interface\n" +
@@ -312,13 +364,6 @@ public class JTypeScriptTest {
                         "            readonly id: number, \n" +
                         "            readonly name: string\n" +
                         "        }>\n" +
-                        "    }\n" +
-                        "    \n" +
-                        "    async findStaticBook(options: {readonly id: number}): Promise<\n" +
-                        "        StaticBook\n" +
-                        "    > {\n" +
-                        "        let uri = '/java/staticBook';\n" +
-                        "        return (await this.executor({uri, method: 'GET'})) as StaticBook\n" +
                         "    }\n" +
                         "    \n" +
                         "    async findTuples(options: {\n" +

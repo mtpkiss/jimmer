@@ -21,8 +21,9 @@ dependencies {
     implementation("org.springframework:spring-core:5.3.20")
     implementation("com.intellij:annotations:12.0")
     implementation("com.squareup:javapoet:1.13.0")
+    implementation("org.mapstruct:mapstruct-processor:1.5.3.Final")
+    implementation(project(":jimmer-mapstruct-apt"))
     implementation(project(":jimmer-core"))
-    implementation(project(":jimmer-dto-compiler"))
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.2")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")

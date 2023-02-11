@@ -11,10 +11,6 @@ repositories {
     mavenCentral()
 }
 
-ksp {
-    arg("jimmer.dtoDirs", "src/test/dto")
-}
-
 dependencies {
     implementation(kotlin("stdlib"))
     implementation(kotlin("reflect"))
@@ -44,7 +40,6 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
     kotlinOptions {
         freeCompilerArgs = listOf("-Xjsr305=strict", "-Xjvm-default=all")
         jvmTarget = "1.8"
-        inputs.files("src/test/dto")
     }
 }
 

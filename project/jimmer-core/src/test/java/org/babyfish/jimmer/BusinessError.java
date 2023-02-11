@@ -6,12 +6,12 @@ import org.babyfish.jimmer.error.ErrorField;
 @ErrorFamily
 public enum BusinessError {
 
-    UNAUTHORIZED,
+    GLOBAL_TENANT_REQUIRED,
 
-    @ErrorField(name = "userName", type = String.class, nullable = true)
-    ILLEGAL_USER_NAME,
+    @ErrorField(name = "pathNodes", type = String.class, list = true, nullable = true)
+    ILLEGAL_PATHS_NODES,
 
-    @ErrorField(name = "x", type = int.class)
-    @ErrorField(name = "y", type = int.class)
-    REFERENCE_CYCLE
+    @ErrorField(name = "min", type = int.class)
+    @ErrorField(name = "max", type = int.class)
+    OUT_OF_RANGE
 }
