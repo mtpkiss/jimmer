@@ -54,7 +54,7 @@ publishing {
     }
     publications {
         register("mavenJava", MavenPublication::class) {
-            artifactId = "jimmer-dto-compiler"
+            artifactId = "jimmer-mapstruct-apt"
             from(components["java"])
             pom {
                 name.set("jimmer")
