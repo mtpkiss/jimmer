@@ -85,7 +85,7 @@ public class FetcherImpl<E> implements Fetcher<E> {
         this.limit = Integer.MAX_VALUE;
         this.offset = 0;
         this.recursionStrategy = null;
-        if (negative || !prop.isAssociation(TargetLevel.ENTITY)) {
+        if (negative || !prop.isAssociation(TargetLevel.PERSISTENT)) {
             this.childFetcher = null;
         } else {
             this.childFetcher = new FetcherImpl<>(prop.getTargetType().getJavaClass());
@@ -106,8 +106,8 @@ public class FetcherImpl<E> implements Fetcher<E> {
             FieldConfigImpl<?, Table<?>> loaderImpl = (FieldConfigImpl<?, Table<?>>) fieldConfig;
             this.filter = loaderImpl.getFilter();
             this.batchSize = loaderImpl.getBatchSize();
-            this.limit = prop.isReferenceList(TargetLevel.ENTITY) ? loaderImpl.getLimit() : Integer.MAX_VALUE;
-            this.offset = prop.isAssociation(TargetLevel.ENTITY) ? loaderImpl.getOffset() : 0;
+            this.limit = prop.isReferenceList(TargetLevel.PERSISTENT) ? loaderImpl.getLimit() : Integer.MAX_VALUE;
+            this.offset = prop.isAssociation(TargetLevel.PERSISTENT) ? loaderImpl.getOffset() : 0;
             this.recursionStrategy = loaderImpl.getRecursionStrategy();
             this.childFetcher = standardChildFetcher(loaderImpl);
         } else {
@@ -157,12 +157,39 @@ public class FetcherImpl<E> implements Fetcher<E> {
                 }
             }
             Map<String, Field> orderedMap = new LinkedHashMap<>();
+            LinkedList<Field> nonAbstractFormulaFields = new LinkedList<>();
             for (String name : orderedNames) {
                 Field field = map.get(name);
                 if (field != null) {
                     orderedMap.put(name, field);
+                    ImmutableProp prop = field.getProp();
+                    if (prop.isFormula() && prop.getFormulaTemplate() == null) {
+                        nonAbstractFormulaFields.add(field);
+                    }
                 }
             }
+            while (!nonAbstractFormulaFields.isEmpty()) {
+                Field field = nonAbstractFormulaFields.remove(0);
+                for (ImmutableProp dependencyProp : field.getProp().getDependencies()) {
+                    if (!orderedMap.containsKey(dependencyProp.getName())) {
+                        Field dependencyField = new FieldImpl(
+                                immutableType,
+                                dependencyProp,
+                                field.getFilter(),
+                                field.getBatchSize(),
+                                Integer.MAX_VALUE,
+                                0,
+                                null,
+                                null
+                        );
+                        orderedMap.put(dependencyProp.getName(), dependencyField);
+                        if (dependencyProp.isFormula() && dependencyProp.getFormulaTemplate() == null) {
+                            nonAbstractFormulaFields.add(dependencyField);
+                        }
+                    }
+                }
+            }
+
             map = Collections.unmodifiableMap(orderedMap);
             fieldMap = map;
         }
@@ -184,7 +211,7 @@ public class FetcherImpl<E> implements Fetcher<E> {
     public Fetcher<E> allScalarFields() {
         FetcherImpl<E> fetcher = this;
         for (ImmutableProp prop : immutableType.getSelectableProps().values()) {
-            if (!prop.isAssociation(TargetLevel.ENTITY)) {
+            if (!prop.isAssociation(TargetLevel.PERSISTENT)) {
                 fetcher = fetcher.addImpl(prop, null);
             }
         }

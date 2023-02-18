@@ -62,10 +62,10 @@ public class PropExpressionImpl<T>
     }
 
     PropExpressionImpl(Table<?> table, ImmutableProp prop) {
-        if (prop.isAssociation(TargetLevel.ENTITY)) {
+        if (prop.isAssociation(TargetLevel.PERSISTENT)) {
             throw new IllegalArgumentException("prop '" + prop + "' cannot be association property");
         }
-        if (!(prop.getStorage() instanceof ColumnDefinition)) {
+        if (!(prop.getStorage() instanceof ColumnDefinition) && prop.getFormulaTemplate() == null) {
             throw new IllegalArgumentException("prop is not selectable");
         }
         this.table = table;
@@ -76,7 +76,7 @@ public class PropExpressionImpl<T>
     }
 
     PropExpressionImpl(EmbeddedImpl<?> base, ImmutableProp prop) {
-        if (prop.isAssociation(TargetLevel.ENTITY)) {
+        if (prop.isAssociation(TargetLevel.PERSISTENT)) {
             throw new IllegalArgumentException("prop '" + prop + "' cannot be association property");
         }
         this.table = base.table;

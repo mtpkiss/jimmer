@@ -21,10 +21,14 @@ class MapStructGenerator(
 
     private fun TypeSpec.Builder.addMembers() {
         for (prop in type.properties.values) {
-            addFields(prop)
+            if (!prop.isKotlinFormula) {
+                addFields(prop)
+            }
         }
         for (prop in type.properties.values) {
-            addSetter(prop)
+            if (!prop.isKotlinFormula) {
+                addSetter(prop)
+            }
         }
         addBuild()
     }
@@ -95,24 +99,33 @@ class MapStructGenerator(
             FunSpec
                 .builder("build")
                 .returns(type.className)
-                .apply {
-                    addCode("return %T.%L.produce ", type.draftClassName, "`$`")
-                    beginControlFlow("")
-                    addStatement("val that = this@%T", type.draftClassName("MapStruct"))
-                    for (prop in type.properties.values) {
-                        val loadName = prop.loadedFieldName
-                        if (loadName !== null) {
-                            beginControlFlow("if (that.%L)", loadName)
-                            addStatement("%L = that.%L", prop.name, prop.name)
-                            endControlFlow()
-                        } else {
-                            beginControlFlow("that.%L?.let ", prop.name)
-                            addStatement("%L = it", prop.name)
-                            endControlFlow()
+                .addCode(
+                    CodeBlock
+                        .builder()
+                        .apply {
+                            add("return %T\n.%L.produce {", type.draftClassName, "`$`")
+                            indent()
+                            addStatement("val that = this@%T", type.draftClassName("MapStruct"))
+                            for (prop in type.properties.values) {
+                                if (prop.isKotlinFormula) {
+                                    continue
+                                }
+                                val loadName = prop.loadedFieldName
+                                if (loadName !== null) {
+                                    beginControlFlow("if (that.%L)", loadName)
+                                    addStatement("%L = that.%L", prop.name, prop.name)
+                                    endControlFlow()
+                                } else {
+                                    beginControlFlow("that.%L?.let ", prop.name)
+                                    addStatement("%L = it", prop.name)
+                                    endControlFlow()
+                                }
+                            }
+                            unindent()
+                            add("}\n")
                         }
-                    }
-                    endControlFlow()
-                }
+                        .build()
+                )
                 .build()
         )
     }

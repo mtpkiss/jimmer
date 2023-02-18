@@ -1,11 +1,16 @@
 package org.babyfish.jimmer.spring.cfg;
 
 import kotlin.Unit;
+import org.babyfish.jimmer.meta.ImmutableProp;
+import org.babyfish.jimmer.meta.ImmutableType;
 import org.babyfish.jimmer.spring.repository.SpringConnectionManager;
+import org.babyfish.jimmer.spring.repository.SpringTransientResolverProvider;
 import org.babyfish.jimmer.sql.DraftInterceptor;
 import org.babyfish.jimmer.sql.JSqlClient;
 import org.babyfish.jimmer.sql.cache.CacheFactory;
 import org.babyfish.jimmer.sql.dialect.Dialect;
+import org.babyfish.jimmer.sql.event.TriggerType;
+import org.babyfish.jimmer.sql.event.Triggers;
 import org.babyfish.jimmer.sql.filter.Filter;
 import org.babyfish.jimmer.sql.kt.KSqlClient;
 import org.babyfish.jimmer.sql.kt.KSqlClientKt;
@@ -14,11 +19,14 @@ import org.babyfish.jimmer.sql.kt.filter.impl.JavaFiltersKt;
 import org.babyfish.jimmer.sql.runtime.EntityManager;
 import org.babyfish.jimmer.sql.runtime.Executor;
 import org.babyfish.jimmer.sql.runtime.ScalarProvider;
+import org.babyfish.jimmer.sql.runtime.TransientResolverProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -35,9 +43,12 @@ public class SqlClientConfig {
     @ConditionalOnMissingBean({JSqlClient.class, KSqlClient.class})
     @ConditionalOnProperty(name = "jimmer.language", havingValue = "java", matchIfMissing = true)
     public JSqlClient javaSqlClient(
+            ApplicationContext ctx,
+            ApplicationEventPublisher publisher,
             JimmerProperties properties,
             @Autowired(required = false) DataSource dataSource,
             @Autowired(required = false) SpringConnectionManager connectionManager,
+            @Autowired(required = false) SpringTransientResolverProvider transientResolverProvider,
             @Autowired(required = false) EntityManager entityManager,
             @Autowired(required = false) Dialect dialect,
             @Autowired(required = false) Executor executor,
@@ -58,9 +69,11 @@ public class SqlClientConfig {
         JSqlClient.Builder builder = JSqlClient.newBuilder();
         preCreateSqlClient(
                 builder,
+                ctx,
                 properties,
                 dataSource,
                 connectionManager,
+                transientResolverProvider,
                 entityManager,
                 dialect,
                 executor,
@@ -71,7 +84,7 @@ public class SqlClientConfig {
                 customizers
         );
         JSqlClient sqlClient = builder.build();
-        postCreateSqlClient(sqlClient, initializers);
+        postCreateSqlClient(sqlClient, publisher, initializers);
         return sqlClient;
     }
 
@@ -79,9 +92,12 @@ public class SqlClientConfig {
     @ConditionalOnMissingBean({JSqlClient.class, KSqlClient.class})
     @ConditionalOnProperty(name = "jimmer.language", havingValue = "kotlin")
     public KSqlClient kotlinSqlClient(
+            ApplicationContext ctx,
+            ApplicationEventPublisher publisher,
             JimmerProperties properties,
             @Autowired(required = false) DataSource dataSource,
             @Autowired(required = false) SpringConnectionManager connectionManager,
+            @Autowired(required = false) SpringTransientResolverProvider transientResolverProvider,
             @Autowired(required = false) EntityManager entityManager,
             @Autowired(required = false) Dialect dialect,
             @Autowired(required = false) Executor executor,
@@ -102,9 +118,11 @@ public class SqlClientConfig {
         KSqlClient sqlClient = KSqlClientKt.newKSqlClient(dsl -> {
             preCreateSqlClient(
                     dsl.getJavaBuilder(),
+                    ctx,
                     properties,
                     dataSource,
                     connectionManager,
+                    transientResolverProvider,
                     entityManager,
                     dialect,
                     executor,
@@ -119,15 +137,17 @@ public class SqlClientConfig {
             );
             return Unit.INSTANCE;
         });
-        postCreateSqlClient(sqlClient.getJavaClient(), initializers);
+        postCreateSqlClient(sqlClient.getJavaClient(), publisher, initializers);
         return sqlClient;
     }
 
     private static void preCreateSqlClient(
             JSqlClient.Builder builder,
+            ApplicationContext ctx,
             JimmerProperties properties,
             DataSource dataSource,
             SpringConnectionManager connectionManager,
+            SpringTransientResolverProvider transientResolverProvider,
             EntityManager entityManager,
             Dialect dialect,
             Executor executor,
@@ -141,6 +161,11 @@ public class SqlClientConfig {
             builder.setConnectionManager(connectionManager);
         } else if (dataSource != null) {
             builder.setConnectionManager(new SpringConnectionManager(dataSource));
+        }
+        if (transientResolverProvider != null) {
+            builder.setTransientResolverProvider(transientResolverProvider);
+        } else {
+            builder.setTransientResolverProvider(new SpringTransientResolverProvider(ctx));
         }
 
         if (entityManager != null) {
@@ -177,6 +202,7 @@ public class SqlClientConfig {
 
     private static void postCreateSqlClient(
             JSqlClient sqlClient,
+            ApplicationEventPublisher publisher,
             List<JimmerInitializer> initializers
     ) {
         if (!(sqlClient.getConnectionManager() instanceof SpringConnectionManager)) {
@@ -194,6 +220,26 @@ public class SqlClientConfig {
                             SpringConnectionManager.class.getName() +
                             "\""
             );
+        }
+
+        if (!SpringTransientResolverProvider.class.isAssignableFrom(sqlClient.getResolverProviderClass())) {
+            throw new IllegalStateException(
+                    "The transient resolver provider of sqlClient must be \"" +
+                            SpringTransientResolverProvider.class.getName() +
+                            "\""
+            );
+        }
+
+        Triggers[] triggersArr = sqlClient.getTriggerType() == TriggerType.BOTH ?
+                new Triggers[] { sqlClient.getTriggers(), sqlClient.getTriggers(true) } :
+                new Triggers[] { sqlClient.getTriggers() };
+        for (ImmutableType type : sqlClient.getEntityManager().getAllTypes()) {
+            for (Triggers triggers : triggersArr) {
+                triggers.addEntityListener(type, publisher::publishEvent);
+                for (ImmutableProp prop : type.getProps().values()) {
+                    triggers.addAssociationListener(prop, publisher::publishEvent);
+                }
+            }
         }
 
         for (JimmerInitializer initializer : initializers) {

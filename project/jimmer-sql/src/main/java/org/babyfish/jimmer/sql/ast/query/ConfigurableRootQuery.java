@@ -35,5 +35,10 @@ public interface ConfigurableRootQuery<T extends Table<?>, R> extends TypedRootQ
     ConfigurableRootQuery<T, R> withoutSortingAndPaging();
 
     @NewChain
-    ConfigurableRootQuery<T, R> forUpdate();
+    default ConfigurableRootQuery<T, R> forUpdate() {
+        return forUpdate(true);
+    }
+
+    @NewChain
+    ConfigurableRootQuery<T, R> forUpdate(boolean forUpdate);
 }
