@@ -1,4 +1,4 @@
-package org.babyfish.jimmer.sql.example.bll.resolver;
+package org.babyfish.jimmer.sql.example.graphql.bll.resolver;
 
 import org.babyfish.jimmer.lang.Ref;
 import org.babyfish.jimmer.sql.TransientResolver;
@@ -6,14 +6,12 @@ import org.babyfish.jimmer.sql.ast.tuple.Tuple2;
 import org.babyfish.jimmer.sql.cache.Caches;
 import org.babyfish.jimmer.sql.event.AssociationEvent;
 import org.babyfish.jimmer.sql.event.EntityEvent;
-import org.babyfish.jimmer.sql.example.dal.BookStoreRepository;
-import org.babyfish.jimmer.sql.example.model.Book;
-import org.babyfish.jimmer.sql.example.model.BookProps;
-import org.babyfish.jimmer.sql.example.model.BookStore;
-import org.babyfish.jimmer.sql.example.model.BookStoreProps;
+import org.babyfish.jimmer.sql.example.graphql.dal.BookStoreRepository;
+import org.babyfish.jimmer.sql.example.graphql.entities.Book;
+import org.babyfish.jimmer.sql.example.graphql.entities.BookProps;
+import org.babyfish.jimmer.sql.example.graphql.entities.BookStore;
+import org.babyfish.jimmer.sql.example.graphql.entities.BookStoreProps;
 import org.babyfish.jimmer.sql.filter.Filters;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
@@ -45,7 +43,7 @@ public class BookStoreAvgPriceResolver implements TransientResolver<Long, BigDec
     // If you are a beginner, you can ignore all the following code.
     //
     // The following code is only used for cache mode(start the application
-    // by `application.yml`).
+    // by `application-cache.yml`).
     //
     // Unlike the fully automatic cache consistency maintenance of
     // ordinary associated property, if a calculated property uses cache,

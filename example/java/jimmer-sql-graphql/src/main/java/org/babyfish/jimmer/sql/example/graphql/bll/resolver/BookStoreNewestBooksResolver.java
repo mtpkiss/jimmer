@@ -1,4 +1,4 @@
-package org.babyfish.jimmer.sql.example.bll.resolver;
+package org.babyfish.jimmer.sql.example.graphql.bll.resolver;
 
 import org.babyfish.jimmer.lang.Ref;
 import org.babyfish.jimmer.sql.TransientResolver;
@@ -6,38 +6,43 @@ import org.babyfish.jimmer.sql.ast.tuple.Tuple2;
 import org.babyfish.jimmer.sql.cache.Caches;
 import org.babyfish.jimmer.sql.event.AssociationEvent;
 import org.babyfish.jimmer.sql.event.EntityEvent;
-import org.babyfish.jimmer.sql.example.dal.BookStoreRepository;
-import org.babyfish.jimmer.sql.example.model.Book;
-import org.babyfish.jimmer.sql.example.model.BookProps;
-import org.babyfish.jimmer.sql.example.model.BookStore;
-import org.babyfish.jimmer.sql.example.model.BookStoreProps;
+import org.babyfish.jimmer.sql.example.graphql.dal.BookStoreRepository;
+import org.babyfish.jimmer.sql.example.graphql.entities.Book;
+import org.babyfish.jimmer.sql.example.graphql.entities.BookProps;
+import org.babyfish.jimmer.sql.example.graphql.entities.BookStore;
+import org.babyfish.jimmer.sql.example.graphql.entities.BookStoreProps;
 import org.babyfish.jimmer.sql.filter.Filters;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.stream.Collectors;
 
 @Component
-public class BookStoreAvgPriceResolver implements TransientResolver<Long, BigDecimal> {
+public class BookStoreNewestBooksResolver implements TransientResolver<Long, List<Long>> {
 
     private final BookStoreRepository bookStoreRepository;
 
-    public BookStoreAvgPriceResolver(BookStoreRepository bookStoreRepository) {
+    public BookStoreNewestBooksResolver(BookStoreRepository bookStoreRepository) {
         this.bookStoreRepository = bookStoreRepository;
     }
 
     @Override
-    public Map<Long, BigDecimal> resolve(Collection<Long> ids) {
-        return bookStoreRepository.findIdAndAvgBookPrice(ids)
+    public Map<Long, List<Long>> resolve(Collection<Long> ids) {
+        return bookStoreRepository.findIdAndNewestBookId(ids)
                 .stream()
                 .collect(
-                        Collectors.toMap(Tuple2::get_1, Tuple2::get_2)
+                        Collectors.groupingBy(
+                                Tuple2::get_1,
+                                Collectors.mapping(
+                                        Tuple2::get_2,
+                                        Collectors.toList()
+                                )
+                        )
                 );
     }
 
@@ -45,7 +50,7 @@ public class BookStoreAvgPriceResolver implements TransientResolver<Long, BigDec
     // If you are a beginner, you can ignore all the following code.
     //
     // The following code is only used for cache mode(start the application
-    // by `application.yml`).
+    // by `application-cache.yml`).
     //
     // Unlike the fully automatic cache consistency maintenance of
     // ordinary associated property, if a calculated property uses cache,
@@ -62,7 +67,7 @@ public class BookStoreAvgPriceResolver implements TransientResolver<Long, BigDec
 
             Caches caches = bookStoreRepository.sql().getCaches();
             caches
-                    .getPropertyCache(BookStoreProps.AVG_PRICE)
+                    .getPropertyCache(BookStoreProps.NEWEST_BOOKS)
                     .delete(e.getSourceId());
         }
     }
@@ -73,11 +78,11 @@ public class BookStoreAvgPriceResolver implements TransientResolver<Long, BigDec
             Ref<BookStore> storeRef = e.getUnchangedFieldRef(BookProps.STORE);
             BookStore store = storeRef != null ? storeRef.getValue() : null;
             if (store != null) { // foreign key does not change.
-                // 2, Check whether `Book.price` is changed
-                if (e.getChangedFieldRef(BookProps.PRICE) != null) {
+                // 2, Check whether `Book.edition` is changed
+                if (e.getChangedFieldRef(BookProps.EDITION) != null) {
                     Caches caches = bookStoreRepository.sql().getCaches();
                     caches
-                            .getPropertyCache(BookStoreProps.AVG_PRICE)
+                            .getPropertyCache(BookStoreProps.NEWEST_BOOKS)
                             .delete(store.id());
                 }
             }
