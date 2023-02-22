@@ -1,21 +1,16 @@
 package org.babyfish.jimmer.sql.example.graphql.bll;
 
 import org.babyfish.jimmer.sql.example.graphql.dal.BookStoreRepository;
-import org.babyfish.jimmer.sql.example.graphql.entities.Book;
 import org.babyfish.jimmer.sql.example.graphql.entities.BookStore;
-import org.babyfish.jimmer.sql.example.graphql.entities.BookStoreProps;
 import org.babyfish.jimmer.sql.example.graphql.entities.input.BookStoreInput;
 import org.springframework.graphql.data.method.annotation.Argument;
-import org.springframework.graphql.data.method.annotation.BatchMapping;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A real project should be a three-tier architecture consisting
@@ -42,25 +37,6 @@ public class BookStoreService {
             @Argument @Nullable String name
     ) {
         return bookStoreRepository.findByNameLikeOrderByName(name);
-    }
-
-    // --- Association ---
-
-    @BatchMapping
-    public Map<BookStore, List<Book>> books(List<BookStore> stores) {
-        return bookStoreRepository.graphql().load(BookStoreProps.BOOKS, stores);
-    }
-
-    // --- Complex calculation ---
-
-    @BatchMapping
-    public Map<BookStore, BigDecimal> avgPrice(List<BookStore> stores) {
-        return bookStoreRepository.graphql().load(BookStoreProps.AVG_PRICE, stores);
-    }
-
-    @BatchMapping
-    public Map<BookStore, List<Book>> newestBooks(List<BookStore> stores) {
-        return bookStoreRepository.graphql().load(BookStoreProps.NEWEST_BOOKS, stores);
     }
 
     // --- Mutation ---

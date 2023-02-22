@@ -2,6 +2,7 @@ package org.babyfish.jimmer.sql.example.graphql.bll;
 
 import org.babyfish.jimmer.sql.example.graphql.dal.AuthorRepository;
 import org.babyfish.jimmer.sql.example.graphql.entities.Author;
+import org.babyfish.jimmer.sql.example.graphql.entities.AuthorFetcher;
 import org.babyfish.jimmer.sql.example.graphql.entities.AuthorProps;
 import org.babyfish.jimmer.sql.example.graphql.entities.Book;
 import org.babyfish.jimmer.sql.example.graphql.entities.input.AuthorInput;
@@ -38,15 +39,6 @@ public class AuthorService {
     @QueryMapping
     public List<Author> authors(@Argument @Nullable String name) {
         return authorRepository.findByName(name);
-    }
-
-    // --- Association ---
-
-    @BatchMapping
-    public Map<Author, List<Book>> books(
-            List<Author> authors
-    ) {
-        return authorRepository.graphql().load(AuthorProps.BOOKS, authors);
     }
 
     // --- Mutation ---
