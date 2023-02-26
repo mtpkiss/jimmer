@@ -10,6 +10,7 @@ public interface TreeNode {
 
     @Id
     @Column(name = "node_id")
+    // `identity(1, 1)` in database, so it is 1, 2, 3 ...
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     long id();
 
@@ -18,8 +19,9 @@ public interface TreeNode {
 
     @Key
     @Nullable
-    @JoinColumn(name = "parent_id")
     @ManyToOne
+    @JoinColumn(name = "parent_id")
+    @OnDissociate(DissociateAction.DELETE)
     TreeNode parentNode();
 
     @OneToMany(mappedBy = "parentNode")
