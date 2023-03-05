@@ -1,8 +1,11 @@
-package org.babyfish.jimmer.sql.example.model.input;
+package org.babyfish.jimmer.sql.example.graphql.entities.input;
 
 import lombok.Data;
 import org.babyfish.jimmer.Input;
-import org.babyfish.jimmer.sql.example.model.*;
+import org.babyfish.jimmer.sql.example.graphql.entities.Author;
+import org.babyfish.jimmer.sql.example.graphql.entities.Book;
+import org.babyfish.jimmer.sql.example.graphql.entities.BookStore;
+import org.babyfish.jimmer.sql.example.graphql.entities.Gender;
 import org.jetbrains.annotations.Nullable;
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;

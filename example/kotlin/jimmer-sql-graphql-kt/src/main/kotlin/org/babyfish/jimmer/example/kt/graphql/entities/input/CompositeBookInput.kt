@@ -1,13 +1,12 @@
-package org.babyfish.jimmer.sql.example.model.input
+package org.babyfish.jimmer.example.kt.graphql.entities.input
 
 import org.babyfish.jimmer.Input
-import org.babyfish.jimmer.sql.example.model.Author
-import org.babyfish.jimmer.sql.example.model.Book
-import org.babyfish.jimmer.sql.example.model.BookStore
-import org.babyfish.jimmer.sql.example.model.Gender
+import org.babyfish.jimmer.example.kt.graphql.entities.Author
+import org.babyfish.jimmer.example.kt.graphql.entities.Book
+import org.babyfish.jimmer.example.kt.graphql.entities.BookStore
+import org.babyfish.jimmer.example.kt.graphql.entities.Gender
 import org.mapstruct.BeanMapping
 import org.mapstruct.Mapper
-import org.mapstruct.Mapping
 import org.mapstruct.ReportingPolicy
 import org.mapstruct.factory.Mappers
 import java.math.BigDecimal

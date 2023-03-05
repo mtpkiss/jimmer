@@ -1,12 +1,11 @@
 package org.babyfish.jimmer.sql.example.graphql.entities.input;
 
 import lombok.Data;
-import org.babyfish.jimmer.ImmutableObjects;
 import org.babyfish.jimmer.Input;
 import org.babyfish.jimmer.sql.example.graphql.entities.Author;
 import org.babyfish.jimmer.sql.example.graphql.entities.Book;
 import org.babyfish.jimmer.sql.example.graphql.entities.BookStore;
-import org.babyfish.jimmer.sql.example.graphql.entities.Chapter;
+import org.babyfish.jimmer.sql.example.graphql.entities.Gender;
 import org.jetbrains.annotations.Nullable;
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
@@ -31,12 +30,9 @@ public class BookInput implements Input<Book> {
 
     private BigDecimal price;
 
-    @Nullable
     private Long storeId;
 
     private List<Long> authorIds;
-
-    private List<String> chapters;
 
     @Override
     public Book toEntity() {
@@ -47,20 +43,27 @@ public class BookInput implements Input<Book> {
     interface Converter {
 
         @BeanMapping(unmappedTargetPolicy = ReportingPolicy.IGNORE)
-        @Mapping(target = "store", source = "storeId")
-        @Mapping(target = "authors", source = "authorIds")
         Book toBook(BookInput input);
-
-        @BeanMapping(ignoreByDefault = true)
-        @Mapping(target = "id", source = ".")
-        BookStore toBookStore(Long id);
-
-        @BeanMapping(ignoreByDefault = true)
-        @Mapping(target = "id", source = ".")
-        Author toAuthor(Long id);
-
-        @BeanMapping(ignoreByDefault = true)
-        @Mapping(target = "title", source = ".")
-        Chapter toChapter(String title);
     }
+
+    /*
+     * If `Book` does not support `storeId` and `authorIds` which
+     * are decorated by `@IdView`, the mapper should look like this
+     */
+//    @Mapper
+//    interface Converter {
+//
+//        @Mapping(target = "store", source = "storeId")
+//        @Mapping(target = "authors", source = "authorIds")
+//        @BeanMapping(unmappedTargetPolicy = ReportingPolicy.IGNORE)
+//        Book toBook(BookInput input);
+//
+//        @BeanMapping(ignoreByDefault = true)
+//        @Mapping(target = "id", source = ".")
+//        BookStore toBookStore(Long id);
+//
+//        @BeanMapping(ignoreByDefault = true)
+//        @Mapping(target = "id", source = ".")
+//        Author toAuthor(Long id);
+//    }
 }
