@@ -30,8 +30,6 @@ public class ImmutableProp {
 
     private final String setterName;
 
-    private final String usingName;
-
     private final String applierName;
 
     private final String adderByName;
@@ -39,6 +37,8 @@ public class ImmutableProp {
     private final boolean beanStyle;
 
     private final String loadedStateName;
+
+    private final String visibleName;
 
     private final TypeMirror returnType;
 
@@ -58,8 +58,6 @@ public class ImmutableProp {
 
     private final boolean isJavaFormula;
 
-    private final Set<String> dependencies;
-
     private final boolean isList;
 
     private final boolean isAssociation;
@@ -71,6 +69,14 @@ public class ImmutableProp {
     private final Map<ClassName, String> validationMessageMap;
 
     private Annotation associationAnnotation;
+
+    private ImmutableType targetType;
+
+    private Set<ImmutableProp> dependencies;
+
+    private ImmutableProp idViewBaseProp;
+
+    private boolean isVisibilityControllable;
 
     public ImmutableProp(
             TypeUtils typeUtils,
@@ -108,7 +114,6 @@ public class ImmutableProp {
                     getterName.substring(2, 3).toLowerCase() +
                     getterName.substring(3);
             setterName = "set" + getterName.substring(2);
-            usingName = "use" + getterName.substring(2);
             applierName = "apply" + getterName.substring(2);
             adderByName = "addInto" + getterName.substring(2);
             beanStyle = true;
@@ -119,7 +124,6 @@ public class ImmutableProp {
                     getterName.substring(3, 4).toLowerCase() +
                             getterName.substring(4);
             setterName = "set" + getterName.substring(3);
-            usingName = "use" + getterName.substring(3);
             applierName = "apply" + getterName.substring(3);
             adderByName = "addInto" + getterName.substring(3);
             beanStyle = true;
@@ -129,13 +133,13 @@ public class ImmutableProp {
                     getterName.substring(0, 1).toUpperCase() +
                     getterName.substring(1);
             setterName = "set" + suffix;
-            usingName = "use" +suffix;
             applierName = "apply" + suffix;
             adderByName = "addInto" + suffix;
             beanStyle = false;
         }
 
-        loadedStateName = name + "Loaded";
+        loadedStateName = "__" + name + "Loaded";
+        visibleName = "__" + name + "Visible";
 
         if (typeUtils.isCollection(returnType)) {
             if (!typeUtils.isListStrictly(returnType)) {
@@ -206,9 +210,6 @@ public class ImmutableProp {
 
         Formula formula = executableElement.getAnnotation(Formula.class);
         isJavaFormula = formula != null && formula.sql().isEmpty();
-        dependencies = formula != null ?
-                Collections.unmodifiableSet(new LinkedHashSet<>(Arrays.asList(formula.dependencies()))) :
-                Collections.emptySet();
 
         isAssociation = typeUtils.isImmutable(elementType);
         isEntityAssociation = typeUtils.isEntity(elementType);
@@ -222,6 +223,16 @@ public class ImmutableProp {
             );
         }
 
+        elementTypeName = TypeName.get(elementType);
+        if (isList) {
+            typeName = ParameterizedTypeName.get(
+                    ClassName.get(List.class),
+                    elementTypeName
+            );
+        } else {
+            typeName = elementTypeName;
+        }
+
         PropDescriptor.Builder builder = PropDescriptor.newBuilder(
                 declaringType.getTypeElement().getQualifiedName().toString(),
                 typeUtils.getImmutableAnnotationType(declaringType.getTypeElement()),
@@ -229,7 +240,9 @@ public class ImmutableProp {
                 ClassName.get(elementType).toString(),
                 typeUtils.getImmutableAnnotationType(elementType),
                 isList,
-                null,
+                elementTypeName.isPrimitive() || elementTypeName.isBoxedPrimitive() ?
+                    elementTypeName.isBoxedPrimitive() :
+                    null,
                 declaringType.getTypeElement().getAnnotation(Immutable.class),
                 MetaException::new
         );
@@ -252,16 +265,6 @@ public class ImmutableProp {
             associationAnnotation = executableElement.getAnnotation(descriptor.getType().getAnnotationType());
         }
         isNullable = descriptor.isNullable();
-
-        elementTypeName = TypeName.get(elementType);
-        if (isList) {
-            typeName = ParameterizedTypeName.get(
-                    ClassName.get(List.class),
-                    elementTypeName
-            );
-        } else {
-            typeName = elementTypeName;
-        }
 
         if (isAssociation) {
             draftElementTypeName = ClassName.get(
@@ -301,10 +304,6 @@ public class ImmutableProp {
         return setterName;
     }
 
-    public String getUsingName() {
-        return usingName;
-    }
-
     public String getApplierName() {
         return applierName;
     }
@@ -317,6 +316,10 @@ public class ImmutableProp {
 
     public String getLoadedStateName() {
         return getLoadedStateName(false);
+    }
+
+    public String getVisibleName() {
+        return visibleName;
     }
 
     public String getLoadedStateName(boolean force) {
@@ -365,10 +368,6 @@ public class ImmutableProp {
         return isJavaFormula;
     }
 
-    public Set<String> getDependencies() {
-        return dependencies;
-    }
-
     public boolean isList() {
         return isList;
     }
@@ -381,8 +380,12 @@ public class ImmutableProp {
         return isNullable;
     }
 
+    public boolean isValueRequired() {
+        return idViewBaseProp == null && !isJavaFormula;
+    }
+
     public boolean isLoadedStateRequired() {
-        return isJavaFormula || isNullable || typeName.isPrimitive();
+        return idViewBaseProp == null && !isJavaFormula && (isNullable || typeName.isPrimitive());
     }
     
     public Class<?> getBoxType() {
@@ -406,6 +409,175 @@ public class ImmutableProp {
             default:
                 return null;
         }
+    }
+
+    public ImmutableType getTargetType() {
+        return targetType;
+    }
+
+    public Set<ImmutableProp> getDependencies() {
+        return dependencies;
+    }
+
+    public ImmutableProp getIdViewBaseProp() {
+        return idViewBaseProp;
+    }
+
+    public boolean isVisibilityControllable() {
+        return isVisibilityControllable;
+    }
+
+    boolean resolve(TypeUtils typeUtils, int step) {
+        switch (step) {
+            case 0:
+                resolveTargetType(typeUtils);
+                return true;
+            case 1:
+                resolveFormulaDependencies();
+                return true;
+            case 2:
+                resolveIdViewBaseProp();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private void resolveTargetType(TypeUtils typeUtils) {
+        if (isAssociation) {
+            targetType = typeUtils.getImmutableType(elementType);
+        }
+    }
+
+    private void resolveFormulaDependencies() {
+        Formula formula = getAnnotation(Formula.class);
+        if (formula == null || formula.dependencies().length == 0) {
+            this.dependencies = Collections.emptySet();
+        } else {
+            Map<String, ImmutableProp> propMap = declaringType.getProps();
+            Set<ImmutableProp> props = new LinkedHashSet<>();
+            for (String dependency : formula.dependencies()) {
+                ImmutableProp prop = propMap.get(dependency);
+                if (prop == null) {
+                    throw new MetaException(
+                            "Illegal property \"" +
+                                    this +
+                                    "\", it is decorated by \"@" +
+                                    Formula.class.getName() +
+                                    "\" but the dependency property \"" +
+                                    dependency +
+                                    "\" does not eixst"
+                    );
+                }
+                props.add(prop);
+                prop.isVisibilityControllable = true;
+            }
+            this.isVisibilityControllable = true;
+            this.dependencies = Collections.unmodifiableSet(props);
+        }
+    }
+
+    private void resolveIdViewBaseProp() {
+        IdView idView = getAnnotation(IdView.class);
+        if (idView == null) {
+            return;
+        }
+        String base = idView.value();
+        if (base.isEmpty()) {
+            if (!isList && name.length() > 2 && !Character.isUpperCase(name.charAt(name.length() - 3)) && name.endsWith("Id")) {
+                base = name.substring(0, name.length() - 2);
+            } else {
+                throw new MetaException(
+                        "Illegal property \"" +
+                                this +
+                                "\", it is decorated by \"@" +
+                                IdView.class.getName() +
+                                "\", the argument of that annotation is not specified by " +
+                                "the base property name cannot be determined automatically, " +
+                                "please specify the argument of that annotation"
+                );
+            }
+        }
+        if (base.equals(name)) {
+            throw new MetaException(
+                    "Illegal property \"" +
+                            this +
+                            "\", it is decorated by \"@" +
+                            IdView.class.getName() +
+                            "\", the argument of that annotation cannot be equal to the current property name\"" +
+                            name +
+                            "\""
+            );
+        }
+        ImmutableProp baseProp = declaringType.getProps().get(base);
+        if (baseProp == null) {
+            throw new MetaException(
+                    "Illegal property \"" +
+                            this +
+                            "\", it is decorated by \"@" +
+                            IdView.class.getName() +
+                            "\" but there is no base property \"" +
+                            base +
+                            "\" in the declaring type"
+            );
+        }
+        if (!baseProp.isAssociation(true) || baseProp.isTransient) {
+            throw new MetaException(
+                    "Illegal property \"" +
+                            this +
+                            "\", it is decorated by \"@" +
+                            IdView.class.getName() +
+                            "\" but the base property \"" +
+                            baseProp +
+                            "\" is not persistence association"
+            );
+        }
+        if (isList != baseProp.isList) {
+            throw new MetaException(
+                    "Illegal property \"" +
+                            this +
+                            "\", it " +
+                            (isList ? "is" : "is not") +
+                            " list and decorated by \"@" +
+                            IdView.class.getName() +
+                            "\" but the base property \"" +
+                            baseProp +
+                            "\" " +
+                            (baseProp.isList ? "is" : "is not") +
+                            " list"
+            );
+        }
+        if (isNullable != baseProp.isNullable) {
+            throw new MetaException(
+                    "Illegal property \"" +
+                            this +
+                            "\", it " +
+                            (isNullable ? "is" : "is not") +
+                            " nullable and decorated by \"@" +
+                            IdView.class.getName() +
+                            "\" but the base property \"" +
+                            baseProp +
+                            "\" " +
+                            (baseProp.isList ? "is" : "is not") +
+                            " nullable"
+            );
+        }
+        if (!elementTypeName.box().equals(baseProp.targetType.getIdProp().getElementTypeName().box())) {
+            throw new MetaException(
+                    "Illegal property \"" +
+                            this +
+                            "\", it is decorated by \"@" +
+                            IdView.class.getName() +
+                            "\", the base property \"" +
+                            baseProp +
+                            "\" returns entity type whose id is \"" +
+                            baseProp.targetType.getIdProp().getElementTypeName() +
+                            "\", but the current property does not return that type"
+            );
+        }
+        baseProp.isVisibilityControllable = true;
+        isVisibilityControllable = true;
+        idViewBaseProp = baseProp;
     }
 
     public <A extends Annotation> A getAnnotation(Class<A> annotationType) {

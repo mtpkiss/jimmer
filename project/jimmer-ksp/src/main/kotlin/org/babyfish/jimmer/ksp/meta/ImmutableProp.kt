@@ -11,9 +11,9 @@ import org.babyfish.jimmer.ksp.*
 import org.babyfish.jimmer.ksp.generator.DRAFT
 import org.babyfish.jimmer.ksp.generator.KEY_FULL_NAME
 import org.babyfish.jimmer.ksp.generator.parseValidationMessages
-import org.babyfish.jimmer.meta.ModelException
 import org.babyfish.jimmer.meta.impl.PropDescriptor
 import org.babyfish.jimmer.sql.*
+import java.lang.IllegalArgumentException
 import kotlin.reflect.KClass
 
 class ImmutableProp(
@@ -55,24 +55,6 @@ class ImmutableProp(
     val isKotlinFormula: Boolean =
         annotation(Formula::class) != null && !propDeclaration.isAbstract()
 
-    val dependencies: List<String> =
-        annotation(Formula::class)?.get("dependencies") ?: emptyList()
-
-    val usingFunName: String? =
-        if (isKotlinFormula) {
-            val name = propDeclaration.name
-            if (resolvedType == ctx.resolver.builtIns.booleanType &&
-                name.length > 2 &&
-                name.startsWith("is") &&
-                name[2].isUpperCase()) {
-                "use${name.substring(2)}"
-            } else {
-                "use${name[0].uppercase()}${name.substring(1)}"
-            }
-        } else {
-            null
-        }
-
     val isList: Boolean =
         (resolvedType.declaration as KSClassDeclaration).asStarProjectedType().let { starType ->
             when {
@@ -89,14 +71,14 @@ class ImmutableProp(
             }
         }
 
-    val targetDeclaration: KSClassDeclaration =
+    private val targetDeclaration: KSClassDeclaration =
         if (isList) {
             resolvedType.arguments[0].type!!.resolve()
         } else {
             resolvedType
         }.declaration.also {
             if (it.annotation(MappedSuperclass::class) !== null) {
-                throw ModelException(
+                throw MetaException(
                     "Illegal property \"$this\", its target type \"$it\" is illegal, it cannot be type decorated by @MappedSuperclass"
                 )
             }
@@ -239,14 +221,18 @@ class ImmutableProp(
             false
         }
 
-    val valueFieldName: String = "__${name}Value"
+    val valueFieldName: String?
+        get() = if (isKotlinFormula || idViewBaseProp !== null) null else "__${name}Value"
 
     val loadedFieldName: String? =
-        if (isNullable || isPrimitive || isKotlinFormula) {
+        if (idViewBaseProp === null && !isKotlinFormula && (isNullable || isPrimitive)) {
             "__${name}Loaded"
         } else {
             null
         }
+
+    val visibleFieldName: String?
+        get() = if (_isVisibilityControllable) "__${name}Visible" else null
 
     fun annotation(annotationType: KClass<out Annotation>): KSAnnotation? =
         propDeclaration.annotation(annotationType)
@@ -262,4 +248,166 @@ class ImmutableProp(
 
     override fun toString(): String =
         "${declaringType}.${propDeclaration.name}"
+
+    private var _idViewBaseProp: ImmutableProp? = null
+
+    private lateinit var _dependencies: Set<ImmutableProp>
+
+    private var _isVisibilityControllable: Boolean = false
+
+    val idViewBaseProp: ImmutableProp?
+        get() = _idViewBaseProp
+
+    val dependencies: Set<ImmutableProp>
+        get() = _dependencies
+
+    internal fun resolve(ctx: Context, step: Int): Boolean =
+        when (step) {
+            0 -> {
+                resolveTargetType(ctx)
+                true
+            }
+            1 -> {
+                resolveIdViewBaseProp()
+                true
+            }
+            2 -> {
+                resolveFormulaDependencies()
+                true
+            }
+            else -> false
+        }
+
+    private fun resolveTargetType(ctx: Context) {
+        if (isAssociation) {
+            targetType
+        }
+    }
+
+    private fun resolveIdViewBaseProp() {
+        val idView = annotation(IdView::class) ?: return
+        var base: String = idView.get<String>("value") ?: ""
+        if (base.isEmpty()) {
+            if (!isList && name.length > 2 && !name[name.length - 3].isUpperCase() && name.endsWith("Id")) {
+                base = name.substring(0, name.length - 2)
+            } else {
+                throw MetaException(
+                    "Illegal property \"" +
+                        this +
+                        "\", it is decorated by \"@" +
+                        IdView::class.java.name +
+                        "\", the argument of that annotation is not specified by " +
+                        "the base property name cannot be determined automatically, " +
+                        "please specify the argument of that annotation"
+                )
+            }
+        }
+        if (base == name) {
+            throw MetaException(
+                "Illegal property \"" +
+                    this +
+                    "\", it is decorated by \"@" +
+                    IdView::class.java.name +
+                    "\", the argument of that annotation cannot be equal to the current property name\"" +
+                    name +
+                    "\""
+            )
+        }
+        val baseProp = declaringType.properties[base]
+            ?: throw MetaException(
+                "Illegal property \"" +
+                    this +
+                    "\", it is decorated by \"@" +
+                    IdView::class.java.name +
+                    "\" but there is no base property \"" +
+                    base +
+                    "\" in the declaring type"
+            )
+        if (!baseProp.isAssociation(true) || baseProp.isTransient) {
+            throw MetaException(
+                "Illegal property \"" +
+                    this +
+                    "\", it is decorated by \"@" +
+                    IdView::class.java.name +
+                    "\" but the base property \"" +
+                    baseProp +
+                    "\" is not persistence association"
+            )
+        }
+        if (isList != baseProp.isList) {
+            throw MetaException(
+                "Illegal property \"" +
+                    this +
+                    "\", it " +
+                    (if (isList) "is" else "is not") +
+                    " list and decorated by \"@" +
+                    IdView::class.java.name +
+                    "\" but the base property \"" +
+                    baseProp +
+                    "\" " +
+                    (if (baseProp.isList) "is" else "is not") +
+                    " list"
+            )
+        }
+        if (isNullable != baseProp.isNullable) {
+            throw MetaException(
+                "Illegal property \"" +
+                    this +
+                    "\", it " +
+                    (if (isNullable) "is" else "is not") +
+                    " nullable and decorated by \"@" +
+                    IdView::class.java.name +
+                    "\" but the base property \"" +
+                    baseProp +
+                    "\" " +
+                    (if (baseProp.isList) "is" else "is not") +
+                    " nullable"
+            )
+        }
+        val targetIdTypeName = baseProp.targetType!!.idProp!!.targetTypeName(
+            overrideNullable = baseProp.isNullable
+        )
+        if (targetTypeName() != targetIdTypeName) {
+            throw MetaException(
+                "Illegal property \"" +
+                    this +
+                    "\", it is decorated by \"@" +
+                    IdView::class.java.name +
+                    "\", the base property \"" +
+                    baseProp +
+                    "\" returns entity type whose id is \"" +
+                    targetIdTypeName +
+                    "\", but the current property does not return that type"
+            )
+        }
+        baseProp._isVisibilityControllable = true
+        _isVisibilityControllable = true
+        _idViewBaseProp = baseProp
+    }
+
+    private fun resolveFormulaDependencies() {
+        val propNames = annotation(Formula::class)?.get<List<String>>("dependencies") ?: emptyList()
+        if (propNames.isEmpty()) {
+            _dependencies = emptySet()
+        } else {
+            val propMap = declaringType.properties
+            val props = mutableSetOf<ImmutableProp>()
+            for (dependency in propNames) {
+                val prop = propMap[dependency]
+                    ?: throw MetaException(
+                        "Illegal property \"" +
+                            this +
+                            "\", it is decorated by \"@" +
+                            Formula::class.qualifiedName +
+                            "\" but the dependency property \"" +
+                            dependency +
+                            "\" does not eixst"
+                    )
+                props.add(prop)
+                prop._isVisibilityControllable = true
+            }
+            this._isVisibilityControllable = true
+            this._dependencies = props
+        }
+    }
 }

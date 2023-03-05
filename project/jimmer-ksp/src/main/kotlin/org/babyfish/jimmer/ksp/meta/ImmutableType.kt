@@ -15,11 +15,12 @@ import org.babyfish.jimmer.sql.Embeddable
 import org.babyfish.jimmer.sql.Entity
 import org.babyfish.jimmer.sql.Id
 import org.babyfish.jimmer.sql.MappedSuperclass
+import java.lang.IllegalArgumentException
 import kotlin.reflect.KClass
 
 class ImmutableType(
     ctx: Context,
-    private val classDeclaration: KSClassDeclaration
+    val classDeclaration: KSClassDeclaration
 ) {
     val simpleName: String = classDeclaration.simpleName.asString()
 
@@ -224,7 +225,32 @@ class ImmutableType(
         }
 
     val propsOrderById: List<ImmutableProp> by lazy {
-        properties.values.sortedBy { it -> it.id }
+        properties.values.sortedBy { it.id }
+    }
+
+    val idProp: ImmutableProp? by lazy {
+        val idProps = declaredProperties.values.filter { it.isId }
+        if (idProps.size > 1) {
+            throw MetaException(
+                "Illegal type \"${this}\", two many properties are decorated by \"@${Id::class.qualifiedName}\": " +
+                    idProps
+            )
+        }
+        val superIdProp = superType?.idProp
+        if (superIdProp != null && idProps.isNotEmpty()) {
+            throw MetaException(
+                "Illegal type \"${this}\" it cannot declare id property " +
+                    "because id property has been declared by super type"
+            )
+        }
+        val prop = idProps.firstOrNull() ?: superIdProp
+        if (prop == null && isEntity) {
+            throw MetaException(
+                "Illegal type \"${this}\", it is decorated by \"@${Entity::class.qualifiedName}\" " +
+                    "but there is no id property"
+            )
+        }
+        prop
     }
 
     val validationMessages: Map<ClassName, String> =
@@ -232,6 +258,14 @@ class ImmutableType(
 
     override fun toString(): String =
         classDeclaration.fullName
+
+    internal fun resolve(ctx: Context, step: Int): Boolean {
+        var hasNext = false
+        for (prop in declaredProperties.values) {
+            hasNext = hasNext or prop.resolve(ctx, step)
+        }
+        return hasNext
+    }
 
     companion object {
 

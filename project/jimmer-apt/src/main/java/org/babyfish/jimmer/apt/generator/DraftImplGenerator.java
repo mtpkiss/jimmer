@@ -2,6 +2,7 @@ package org.babyfish.jimmer.apt.generator;
 
 import com.squareup.javapoet.*;
 import org.babyfish.jimmer.CircularReferenceException;
+import org.babyfish.jimmer.ImmutableObjects;
 import org.babyfish.jimmer.apt.meta.ImmutableProp;
 import org.babyfish.jimmer.apt.meta.ImmutableType;
 import org.babyfish.jimmer.runtime.DraftContext;
@@ -45,14 +46,13 @@ public class DraftImplGenerator {
             addGetter(prop);
             addCreator(prop);
             addSetter(prop);
-            addUsing(prop);
             addUtilMethod(prop, false);
             addUtilMethod(prop, true);
         }
         addSet(int.class);
         addSet(String.class);
-        addUse(int.class);
-        addUse(String.class);
+        addShow(int.class);
+        addShow(String.class);
         addUnload(int.class);
         addUnload(String.class);
         addDraftContext();
@@ -231,6 +231,26 @@ public class DraftImplGenerator {
         );
         typeBuilder.addMethod(
                 MethodSpec
+                        .methodBuilder("__isVisible")
+                        .addModifiers(Modifier.PUBLIC)
+                        .addAnnotation(Override.class)
+                        .addParameter(int.class, "prop")
+                        .returns(boolean.class)
+                        .addStatement("return $L.__isVisible(prop)", UNMODIFIED)
+                        .build()
+        );
+        typeBuilder.addMethod(
+                MethodSpec
+                        .methodBuilder("__isVisible")
+                        .addModifiers(Modifier.PUBLIC)
+                        .addAnnotation(Override.class)
+                        .addParameter(String.class, "prop")
+                        .returns(boolean.class)
+                        .addStatement("return $L.__isVisible(prop)", UNMODIFIED)
+                        .build()
+        );
+        typeBuilder.addMethod(
+                MethodSpec
                         .methodBuilder("hashCode")
                         .addModifiers(Modifier.PUBLIC)
                         .addAnnotation(Override.class)
@@ -280,7 +300,38 @@ public class DraftImplGenerator {
         if (prop.isBeanStyle()) {
             builder.addAnnotation(JSON_IGNORE_CLASS_NAME);
         }
-        if (prop.isList()) {
+
+        ImmutableProp baseProp = prop.getIdViewBaseProp();
+        if (baseProp != null) {
+            if (baseProp.isList()) {
+                builder.addStatement(
+                        "$T<$T> __ids = new $T($L().size())",
+                        LIST_CLASS_NAME,
+                        baseProp.getTargetType().getIdProp().getTypeName().box(),
+                        ArrayList.class,
+                        baseProp.getGetterName()
+                );
+                builder.beginControlFlow(
+                        "for ($T __target : $L())",
+                        baseProp.getElementTypeName(),
+                        baseProp.getGetterName()
+                );
+                builder.addStatement(
+                        "__ids.add(__target.$L())",
+                        baseProp.getTargetType().getIdProp().getGetterName()
+                );
+                builder.endControlFlow();
+                builder.addStatement("return __ids");
+            } else {
+                builder.addStatement("$T __target = $L()", baseProp.getElementTypeName(), baseProp.getGetterName());
+                builder.addStatement(
+                        prop.isNullable() ?
+                                "return __target != null ? __target.$L() : null" :
+                                "__target.$L()",
+                        baseProp.getTargetType().getIdProp().getGetterName()
+                );
+            }
+        } else if (prop.isList()) {
             builder.addCode(
                     "return $L.$L($L.$L(), $T.class, $L);",
                     DRAFT_FIELD_CTX,
@@ -367,37 +418,65 @@ public class DraftImplGenerator {
                 .addParameter(prop.getTypeName(), prop.getName())
                 .returns(type.getDraftClassName());
 
-        new ValidationGenerator(prop, prop.getName(), builder).generate();
-
-        builder.addStatement("$T __tmpModified = $L()", type.getImplClassName(), DRAFT_FIELD_MODIFIED);
-        if (prop.isList()) {
-            builder.addStatement(
-                    "__tmpModified.$L = $T.of(__tmpModified.$L, $L)",
-                    prop.getName(),
-                    NonSharedList.class,
-                    prop.getName(),
-                    prop.getName()
-            );
+        ImmutableProp baseProp = prop.getIdViewBaseProp();
+        if (baseProp != null) {
+            builder.beginControlFlow("if ($L != null)", prop.getName());
+            if (prop.isList()) {
+                builder.addStatement(
+                        "$T<$T> __targets = new $T($L.size())",
+                        LIST_CLASS_NAME,
+                        baseProp.getElementTypeName(),
+                        ArrayList.class,
+                        prop.getName()
+                );
+                builder.beginControlFlow(
+                        "for ($T __id : $L)",
+                        baseProp.getTargetType().getIdProp().getTypeName(),
+                        prop.getName()
+                );
+                builder.addStatement(
+                        "__targets.add($T.makeIdOnly($T.class, __id))",
+                        ImmutableObjects.class,
+                        baseProp.getElementTypeName()
+                );
+                builder.endControlFlow();
+                builder.addStatement("$L(__targets)", baseProp.getSetterName());
+            } else {
+                builder.addStatement(
+                        "$L($T.makeIdOnly($T.class, $L))",
+                        baseProp.getSetterName(),
+                        ImmutableObjects.class,
+                        baseProp.getElementTypeName(),
+                        prop.getName()
+                );
+            }
+            builder.nextControlFlow("else");
+            if (prop.isList()) {
+                builder.addStatement("$L($T.emptyList())", baseProp.getSetterName(), COLLECTIONS_CLASS_NAME);
+            } else {
+                builder.addStatement("$L(null)", baseProp.getSetterName());
+            }
+            builder.endControlFlow();
         } else {
-            builder.addStatement("__tmpModified.$L = $L", prop.getName(), prop.getName());
-        }
-        if (prop.isLoadedStateRequired()) {
-            builder.addStatement("__tmpModified.$L = true", prop.getLoadedStateName());
-        }
-        builder.addStatement("return this");
-        typeBuilder.addMethod(builder.build());
-    }
 
-    private void addUsing(ImmutableProp prop) {
-        if (!prop.isJavaFormula()) {
-            return;
+            new ValidationGenerator(prop, prop.getName(), builder).generate();
+
+            builder.addStatement("$T __tmpModified = $L()", type.getImplClassName(), DRAFT_FIELD_MODIFIED);
+            if (prop.isList()) {
+                builder.addStatement(
+                        "__tmpModified.$L = $T.of(__tmpModified.$L, $L)",
+                        prop.getName(),
+                        NonSharedList.class,
+                        prop.getName(),
+                        prop.getName()
+                );
+            } else {
+                builder.addStatement("__tmpModified.$L = $L", prop.getName(), prop.getName());
+            }
+            if (prop.isLoadedStateRequired()) {
+                builder.addStatement("__tmpModified.$L = true", prop.getLoadedStateName());
+            }
         }
-        MethodSpec.Builder builder = MethodSpec
-                .methodBuilder(prop.getUsingName())
-                .addModifiers(Modifier.PUBLIC)
-                .addAnnotation(Override.class)
-                .returns(type.getDraftClassName());
-        builder.addStatement("__modified().$L = true", prop.getLoadedStateName());
         builder.addStatement("return this");
         typeBuilder.addMethod(builder.build());
     }
@@ -502,21 +581,22 @@ public class DraftImplGenerator {
         typeBuilder.addMethod(builder.build());
     }
 
-    private void addUse(Class<?> argType) {
+    private void addShow(Class<?> argType) {
         MethodSpec.Builder builder = MethodSpec
-                .methodBuilder("__use")
+                .methodBuilder("__show")
                 .addModifiers(Modifier.PUBLIC)
                 .addAnnotation(Override.class)
-                .addParameter(argType, "prop");
+                .addParameter(argType, "prop")
+                .addParameter(TypeName.BOOLEAN, "visible");
         builder.beginControlFlow("switch (prop)");
         for (ImmutableProp prop : type.getPropsOrderById()) {
-            if (prop.isJavaFormula()) {
+            if (prop.isVisibilityControllable()) {
                 Object arg = argType == int.class ? prop.getId() : '"' + prop.getName() + '"';
                 builder.addStatement(
-                        "case $L: $L().$L = true;break",
+                        "case $L: $L().$L = visible;break",
                         arg,
                         DRAFT_FIELD_MODIFIED,
-                        prop.getLoadedStateName()
+                        prop.getVisibleName()
                 );
             }
         }
@@ -525,7 +605,7 @@ public class DraftImplGenerator {
                 "Illegal property " +
                         (argType == String.class ? "name" : "id") +
                         ": \"",
-                "\",it does not exists or is not non-abstract formula property",
+                "\",it does not exists or the visibility of that property is not controllable",
                 "(Only non-abstract formula property can be used)"
         );
         builder.endControlFlow();
@@ -541,7 +621,15 @@ public class DraftImplGenerator {
         builder.beginControlFlow("switch (prop)");
         for (ImmutableProp prop : type.getPropsOrderById()) {
             Object arg = argType == int.class ? prop.getId() : '"' + prop.getName() + '"';
-            if (prop.isLoadedStateRequired()) {
+            if (prop.getIdViewBaseProp() != null) {
+                builder.addStatement(
+                        "case $L: __unload($L);break",
+                        arg,
+                        prop.getIdViewBaseProp().getId()
+                );
+            } else if (prop.isJavaFormula()) {
+                builder.addStatement("case $L: break", arg);
+            } else if (prop.isLoadedStateRequired()) {
                 builder.addStatement(
                         "case $L: $L().$L = false;break",
                         arg,
@@ -562,7 +650,7 @@ public class DraftImplGenerator {
                 "Illegal property " +
                         (argType == String.class ? "name" : "id") +
                         ": \"",
-                "\""
+                "\", it does not exist or its loaded state is not controllable"
         );
         builder.endControlFlow();
         typeBuilder.addMethod(builder.build());
@@ -610,7 +698,7 @@ public class DraftImplGenerator {
         if (type.getProps().values().stream().anyMatch(it -> it.isAssociation(false) || it.isList())) {
             builder.beginControlFlow("if (__tmpModified == null)");
             for (ImmutableProp prop : type.getProps().values()) {
-                if (prop.isAssociation(false) || prop.isList()) {
+                if (prop.getIdViewBaseProp() == null && (prop.isAssociation(false) || prop.isList())) {
                     builder.beginControlFlow("if (base.__isLoaded($L))", prop.getId());
                     builder.addStatement(
                             "$T oldValue = base.$L()",
@@ -641,7 +729,7 @@ public class DraftImplGenerator {
 
             builder.beginControlFlow("else");
             for (ImmutableProp prop : type.getProps().values()) {
-                if (prop.isList()) {
+                if (prop.isList() && prop.getIdViewBaseProp() == null) {
                     builder.addStatement(
                             "__tmpModified.$L = $T.of(__tmpModified.$L, $L.$L(__tmpModified.$L))",
                             prop.getName(),
