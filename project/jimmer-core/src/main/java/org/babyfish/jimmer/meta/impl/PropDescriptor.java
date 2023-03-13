@@ -389,13 +389,13 @@ public class PropDescriptor {
                     }
                     break;
                 default:
-                    if (isList) {
+                    if (type.isAssociation && isList) {
                         throw exceptionCreator.apply(
                                 "The property \"" +
                                         propText +
-                                        "\" is illegal, list property must be decorated by @" +
+                                        "\" is illegal, list association property must be decorated by @" +
                                         OneToMany.class +
-                                        "or @" +
+                                        " or @" +
                                         ManyToMany.class
                         );
                     }
@@ -436,7 +436,7 @@ public class PropDescriptor {
                                 propText +
                                 "\" is illegal, it cannot be decorated by @" +
                                 annotationTypeName +
-                                " because its nullity hash already specified by kotlin language"
+                                " because its nullity can be automatically determined"
                 );
             }
             if (annotationNullity != null) {

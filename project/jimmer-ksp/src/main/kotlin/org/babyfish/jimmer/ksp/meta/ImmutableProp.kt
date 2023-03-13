@@ -5,6 +5,7 @@ import com.google.devtools.ksp.symbol.*
 import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.ksp.toClassName
+import com.squareup.kotlinpoet.ksp.toTypeName
 import org.babyfish.jimmer.Formula
 import org.babyfish.jimmer.Immutable
 import org.babyfish.jimmer.ksp.*
@@ -13,7 +14,6 @@ import org.babyfish.jimmer.ksp.generator.KEY_FULL_NAME
 import org.babyfish.jimmer.ksp.generator.parseValidationMessages
 import org.babyfish.jimmer.meta.impl.PropDescriptor
 import org.babyfish.jimmer.sql.*
-import java.lang.IllegalArgumentException
 import kotlin.reflect.KClass
 
 class ImmutableProp(
@@ -58,7 +58,7 @@ class ImmutableProp(
     val isList: Boolean =
         (resolvedType.declaration as KSClassDeclaration).asStarProjectedType().let { starType ->
             when {
-                ctx.mapType.isAssignableFrom(starType) ->
+                isAssociation && ctx.mapType.isAssignableFrom(starType) ->
                     throw MetaException("Illegal property '$propDeclaration', cannot be map")
                 ctx.collectionType.isAssignableFrom(starType) ->
                     if (!ctx.listType.isAssignableFrom(starType) ||
@@ -69,6 +69,13 @@ class ImmutableProp(
                     }
                 else -> false
             }
+        }
+
+    fun isDsl(isTableEx: Boolean): Boolean =
+        when {
+            idViewBaseProp !== null || isKotlinFormula || isTransient -> false
+            isList && isAssociation(true) -> isTableEx
+            else -> true
         }
 
     private val targetDeclaration: KSClassDeclaration =
@@ -159,32 +166,55 @@ class ImmutableProp(
     fun isAssociation(entityLevel: Boolean): Boolean =
         isAssociation && (!entityLevel || targetDeclaration.annotation(Entity::class) != null)
 
+    val targetClassName: ClassName =
+        targetDeclaration.className()
+
     fun targetTypeName(
         draft: Boolean = false,
         overrideNullable: Boolean? = null
-    ): ClassName =
-        targetDeclaration
-            .className(overrideNullable ?: isNullable) {
-                if (draft && isAssociation) {
-                    "$it$DRAFT"
-                } else {
-                    it
-                }
+    ): TypeName =
+        if (isList) {
+            (propDeclaration.type.toTypeName() as ParameterizedTypeName).typeArguments[0]
+        } else {
+            propDeclaration.type.toTypeName()
+        }.let {
+            if (draft && isAssociation && it is ClassName) {
+                ClassName(it.packageName, "${it.simpleName}$DRAFT")
+            } else {
+                it
             }
+        }.let {
+            if (overrideNullable != null) {
+                it.copy(nullable = overrideNullable)
+            } else {
+                it
+            }
+        }
 
     fun typeName(draft: Boolean = false, overrideNullable: Boolean? = null): TypeName =
-        targetTypeName(draft, overrideNullable)
-            .let {
-                if (isList) {
-                    if (draft) {
-                        MUTABLE_LIST.parameterizedBy(it)
-                    } else {
-                        LIST.parameterizedBy(it)
-                    }
-                } else {
-                    it
-                }
+        if (isList) {
+            (propDeclaration.type.toTypeName() as ParameterizedTypeName).typeArguments[0]
+        } else {
+            propDeclaration.type.toTypeName()
+        }.let {
+            if (draft && isAssociation && it is ClassName) {
+                ClassName(it.packageName, "${it.simpleName}$DRAFT")
+            } else {
+                it
             }
+        }.let {
+            when {
+                isList && draft -> MUTABLE_LIST.parameterizedBy(it)
+                isList -> LIST.parameterizedBy(it)
+                else -> it
+            }
+        }.let {
+            if (overrideNullable != null) {
+                it.copy(nullable = overrideNullable)
+            } else {
+                it
+            }
+        }
 
     val targetType: ImmutableType? by lazy {
         targetDeclaration

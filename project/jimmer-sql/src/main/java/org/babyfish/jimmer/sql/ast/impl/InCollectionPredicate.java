@@ -2,6 +2,10 @@ package org.babyfish.jimmer.sql.ast.impl;
 
 import org.babyfish.jimmer.sql.ast.Expression;
 import org.babyfish.jimmer.sql.ast.Predicate;
+import org.babyfish.jimmer.sql.ast.PropExpression;
+import org.babyfish.jimmer.sql.ast.table.spi.PropExpressionImplementor;
+import org.babyfish.jimmer.sql.runtime.ExecutionException;
+import org.babyfish.jimmer.sql.runtime.ScalarProvider;
 import org.babyfish.jimmer.sql.runtime.SqlBuilder;
 import org.jetbrains.annotations.NotNull;
 
@@ -40,6 +44,7 @@ class InCollectionPredicate extends AbstractPredicate {
             builder.sql(negative ? " not in " : " in ");
             builder.sql("(");
             String separator = "";
+            values = Literals.convert(values, expression, builder.getAstContext().getSqlClient());
             for (Object value : values) {
                 builder.sql(separator);
                 builder.variable(value);

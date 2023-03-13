@@ -25,6 +25,8 @@ class BetweenPredicate extends AbstractPredicate {
         this.expression = expression;
         this.min = min;
         this.max = max;
+        Literals.bind(min, expression);
+        Literals.bind(min, expression);
     }
 
     @Override

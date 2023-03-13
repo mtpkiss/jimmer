@@ -351,6 +351,12 @@ public class ImmutableProp {
         return elementTypeName;
     }
 
+    public TypeName getRawElementTypeName() {
+        return elementTypeName instanceof ParameterizedTypeName ?
+                ((ParameterizedTypeName)elementTypeName).rawType :
+                elementTypeName;
+    }
+
     public TypeName getDraftElementTypeName() {
         return draftElementTypeName;
     }
@@ -385,6 +391,16 @@ public class ImmutableProp {
 
     public boolean isLoadedStateRequired() {
         return idViewBaseProp == null && !isJavaFormula && (isNullable || typeName.isPrimitive());
+    }
+
+    public boolean isDsl(boolean isTableEx) {
+        if (idViewBaseProp != null || isJavaFormula || isTransient) {
+            return false;
+        }
+        if (isList && isAssociation(true)) {
+            return isTableEx;
+        }
+        return true;
     }
     
     public Class<?> getBoxType() {
