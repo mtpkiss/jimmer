@@ -10,6 +10,9 @@ import static org.babyfish.jimmer.sql.common.Constants.*;
 
 import org.babyfish.jimmer.sql.meta.UserIdGenerator;
 import org.babyfish.jimmer.sql.model.*;
+import org.babyfish.jimmer.sql.model.hr.Department;
+import org.babyfish.jimmer.sql.model.hr.DepartmentDraft;
+import org.babyfish.jimmer.sql.model.hr.Employee;
 import org.babyfish.jimmer.sql.model.inheritance.*;
 import org.babyfish.jimmer.sql.runtime.DbNull;
 import org.jetbrains.annotations.NotNull;
@@ -1112,5 +1115,83 @@ public class CascadeSaveTest extends AbstractMutationTest {
                 draft.setCreatedTime(TIME);
             }
         }
+    }
+
+    @Test
+    public void testAppendOnlyChild() {
+        setAutoIds(Employee.class, 100L);
+        executeAndExpectResult(
+                getSqlClient().getEntities().saveCommand(
+                        DepartmentDraft.$.produce(draft -> {
+                            draft.setId(1L);
+                            draft.setName("Develop");
+                            draft.addIntoEmployees(employee -> employee.setName("Tim"));
+                        })
+                ).setAppendOnlyAll().setAutoAttachingAll(),
+                ctx -> {
+                    ctx.statement(it -> {
+                        it.sql("select tb_1_.ID from DEPARTMENT as tb_1_ where tb_1_.ID = ?");
+                        it.variables(1L);
+                    });
+                    ctx.statement(it -> {
+                        it.sql("update DEPARTMENT set NAME = ? where ID = ?");
+                        it.variables("Develop", 1L);
+                    });
+                    ctx.statement(it -> {
+                        it.sql("insert into EMPLOYEE(ID, NAME, DEPARTMENT_ID) values(?, ?, ?)");
+                        it.variables(100L, "Tim", 1L);
+                    });
+                    ctx.entity(it -> {
+                        it.original(
+                                "{\"id\":1,\"name\":\"Develop\",\"employees\":[{\"name\":\"Tim\"}]}"
+                        );
+                        it.modified(
+                                "{" +
+                                        "--->\"id\":1," +
+                                        "--->\"name\":\"Develop\"," +
+                                        "--->\"employees\":[" +
+                                        "--->--->{\"id\":100,\"name\":\"Tim\",\"department\":{\"id\":1}}" +
+                                        "--->]" +
+                                        "}");
+                    });
+                }
+        );
+    }
+
+    @Test
+    public void testAppendOnlyAll() {
+        setAutoIds(Department.class, 10L);
+        setAutoIds(Employee.class, 100L);
+        executeAndExpectResult(
+                getSqlClient().getEntities().saveCommand(
+                        DepartmentDraft.$.produce(draft -> {
+                            draft.setName("Develop");
+                            draft.addIntoEmployees(employee -> employee.setName("Tim"));
+                        })
+                ).setAppendOnlyAll().setAutoAttachingAll(),
+                ctx -> {
+                    ctx.statement(it -> {
+                        it.sql("insert into DEPARTMENT(ID, NAME) values(?, ?)");
+                        it.variables(10L, "Develop");
+                    });
+                    ctx.statement(it -> {
+                        it.sql("insert into EMPLOYEE(ID, NAME, DEPARTMENT_ID) values(?, ?, ?)");
+                        it.variables(100L, "Tim", 10L);
+                    });
+                    ctx.entity(it -> {
+                        it.original(
+                                "{\"name\":\"Develop\",\"employees\":[{\"name\":\"Tim\"}]}"
+                        );
+                        it.modified(
+                                "{" +
+                                        "--->\"id\":10," +
+                                        "--->\"name\":\"Develop\"," +
+                                        "--->\"employees\":[" +
+                                        "--->--->{\"id\":100,\"name\":\"Tim\",\"department\":{\"id\":10}}" +
+                                        "--->]" +
+                                        "}");
+                    });
+                }
+        );
     }
 }
