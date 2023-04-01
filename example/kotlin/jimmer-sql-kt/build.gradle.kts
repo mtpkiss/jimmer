@@ -9,7 +9,7 @@ plugins {
 	id("com.google.devtools.ksp") version "1.7.10-1.0.6"
 }
 
-val jimmerVersion = "0.7.14"
+val jimmerVersion = "0.7.15"
 
 group = "org.babyfish.jimmer.example.kt"
 version = jimmerVersion
@@ -21,8 +21,8 @@ repositories {
 
 dependencies {
 
-	api("org.springframework.boot:spring-boot-starter-web")
-	api("org.springframework.data:spring-data-redis")
+	implementation("org.springframework.boot:spring-boot-starter-web")
+	implementation("org.springframework.data:spring-data-redis")
 	implementation("org.springframework.kafka:spring-kafka:2.9.0")
 
 	implementation("org.babyfish.jimmer:jimmer-spring-boot-starter:${jimmerVersion}")
