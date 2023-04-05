@@ -269,7 +269,7 @@ public interface Book {
     BigDecimal price();
 
     @Null
-    @ManyToOne(optional = true)
+    @ManyToOne
     BookStore store();
 
     @ManyToMany
@@ -311,7 +311,7 @@ public interface Book {
 
     val price: BigDecimal
 
-    @ManyToOne(optional = true)
+    @ManyToOne
     val store: BookStore?
 
     @ManyToMany

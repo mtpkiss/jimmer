@@ -862,7 +862,7 @@ public interface Book {
 
     @ManyToMany
     @JoinTable
-    List<Author> autors();
+    List<Author> authors();
 
     ...
 }
@@ -907,7 +907,7 @@ public interface Book {
         joinColumnName = "BOOK_ID",
         inverseColumnName = "AUTHOR_ID"
     )
-    List<Author> autors();
+    List<Author> authors();
 
     ...
 }

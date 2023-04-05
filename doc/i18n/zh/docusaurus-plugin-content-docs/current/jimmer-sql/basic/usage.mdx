@@ -270,7 +270,7 @@ public interface Book {
     BigDecimal price();
 
     @Null
-    @ManyToOne(optional = true)
+    @ManyToOne
     BookStore store();
 
     @ManyToMany
