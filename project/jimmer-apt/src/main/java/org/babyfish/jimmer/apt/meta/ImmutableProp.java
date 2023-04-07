@@ -66,6 +66,8 @@ public class ImmutableProp {
 
     private final boolean isNullable;
 
+    private final boolean isReverse;
+
     private final Map<ClassName, String> validationMessageMap;
 
     private Annotation associationAnnotation;
@@ -267,6 +269,17 @@ public class ImmutableProp {
         isNullable = descriptor.isNullable();
 
         if (isAssociation) {
+            OneToOne oneToOne = getAnnotation(OneToOne.class);
+            OneToMany oneToMany = getAnnotation(OneToMany.class);
+            ManyToMany manyToMany = getAnnotation(ManyToMany.class);
+            isReverse = (oneToOne != null && !oneToOne.mappedBy().isEmpty()) ||
+                    (oneToMany != null && !oneToMany.mappedBy().isEmpty()) ||
+                    (manyToMany != null && !manyToMany.mappedBy().isEmpty());
+        } else {
+            isReverse = false;
+        }
+
+        if (isAssociation) {
             draftElementTypeName = ClassName.get(
                     ((ClassName)elementTypeName).packageName(),
                     ((ClassName)elementTypeName).simpleName() + "Draft"
@@ -386,6 +399,10 @@ public class ImmutableProp {
         return isNullable;
     }
 
+    public boolean isReverse() {
+        return isReverse;
+    }
+
     public boolean isValueRequired() {
         return idViewBaseProp == null && !isJavaFormula;
     }
@@ -443,6 +460,10 @@ public class ImmutableProp {
         return isVisibilityControllable;
     }
 
+    public boolean isRemote() {
+        return targetType != null && !declaringType.getMicroServiceName().equals(targetType.getMicroServiceName());
+    }
+
     boolean resolve(TypeUtils typeUtils, int step) {
         switch (step) {
             case 0:
@@ -462,6 +483,27 @@ public class ImmutableProp {
     private void resolveTargetType(TypeUtils typeUtils) {
         if (isAssociation) {
             targetType = typeUtils.getImmutableType(elementType);
+            if (
+                    (targetType.isEntity() || targetType.isMappedSuperClass()) &&
+                    isRemote() &&
+                    (declaringType.getMicroServiceName().isEmpty() || targetType.getMicroServiceName().isEmpty())
+            ) {
+                throw new MetaException(
+                        "Illegal property \"" +
+                                this +
+                                "\", when the micro service name(`" +
+                                declaringType.getMicroServiceName() +
+                                "`) of source type(" +
+                                declaringType.getQualifiedName() +
+                                ") and " +
+                                "the micro service name(`" +
+                                targetType.getMicroServiceName() +
+                                "`) of target type(" +
+                                targetType.getQualifiedName() +
+                                ") are not equal, " +
+                                "neither of them must be empty"
+                );
+            }
         }
     }
 

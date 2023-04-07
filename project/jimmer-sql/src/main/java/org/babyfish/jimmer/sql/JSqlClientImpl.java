@@ -87,6 +87,10 @@ class JSqlClientImpl implements JSqlClient {
 
     private final DraftInterceptorManager draftInterceptorManager;
 
+    private final String microServiceName;
+
+    private final MicroServiceExchange microServiceExchange;
+
     private final Loaders loaders = new LoadersImpl(this);
 
     private final ReaderManager readerManager = new ReaderManager(this);
@@ -110,7 +114,10 @@ class JSqlClientImpl implements JSqlClient {
             BinLog binLog,
             FilterManager filterManager,
             TransientResolverManager transientResolverManager,
-            DraftInterceptorManager draftInterceptorManager) {
+            DraftInterceptorManager draftInterceptorManager,
+            String microServiceName,
+            MicroServiceExchange microServiceExchange
+    ) {
         this.connectionManager =
                 connectionManager != null ?
                         connectionManager :
@@ -138,13 +145,15 @@ class JSqlClientImpl implements JSqlClient {
         this.caches =
                 caches != null ?
                         caches :
-                        CachesImpl.of(triggers, entityManager, null);
+                        CachesImpl.of(triggers, entityManager, microServiceName, null);
         this.triggers = triggers;
         this.transactionTriggers = transactionTriggers;
         this.binLog = binLog;
         this.filterManager = filterManager;
         this.transientResolverManager = transientResolverManager;
         this.draftInterceptorManager = draftInterceptorManager;
+        this.microServiceName = microServiceName;
+        this.microServiceExchange = microServiceExchange;
     }
 
     @Override
@@ -370,7 +379,9 @@ class JSqlClientImpl implements JSqlClient {
                 binLog,
                 filterManager,
                 transientResolverManager,
-                draftInterceptorManager
+                draftInterceptorManager,
+                microServiceName,
+                microServiceExchange
         );
     }
 
@@ -403,7 +414,9 @@ class JSqlClientImpl implements JSqlClient {
                 binLog,
                 cfg.getFilterManager(),
                 transientResolverManager,
-                draftInterceptorManager
+                draftInterceptorManager,
+                microServiceName,
+                microServiceExchange
         );
     }
 
@@ -431,7 +444,9 @@ class JSqlClientImpl implements JSqlClient {
                 binLog,
                 filterManager,
                 transientResolverManager,
-                draftInterceptorManager
+                draftInterceptorManager,
+                microServiceName,
+                microServiceExchange
         );
     }
 
@@ -468,6 +483,16 @@ class JSqlClientImpl implements JSqlClient {
     @Override
     public Reader<?> getReader(ImmutableProp prop) {
         return readerManager.reader(prop);
+    }
+
+    @Override
+    public String getMicroServiceName() {
+        return microServiceName;
+    }
+
+    @Override
+    public MicroServiceExchange getMicroServiceExchange() {
+        return microServiceExchange;
     }
 
     public static class BuilderImpl implements JSqlClient.Builder {
@@ -517,6 +542,10 @@ class JSqlClientImpl implements JSqlClient {
         private ObjectMapper binLogObjectMapper;
 
         private DatabaseValidationMode databaseValidationMode = DatabaseValidationMode.NONE;
+
+        private String microServiceName = "";
+
+        private MicroServiceExchange microServiceExchange;
 
         public BuilderImpl() {}
 
@@ -713,7 +742,7 @@ class JSqlClientImpl implements JSqlClient {
                 throw new IllegalStateException("caches cannot be set twice");
             }
             createTriggersIfNecessary();
-            caches = CachesImpl.of(triggers, entityManager, block);
+            caches = CachesImpl.of(triggers, entityManager, microServiceName, block);
             return this;
         }
 
@@ -796,12 +825,29 @@ class JSqlClientImpl implements JSqlClient {
         }
 
         @Override
+        public Builder setMicroServiceName(String microServiceName) {
+            this.microServiceName = microServiceName != null ? microServiceName : "";
+            return this;
+        }
+
+        @Override
+        public Builder setMicroServiceExchange(MicroServiceExchange exchange) {
+            this.microServiceExchange = exchange;
+            return this;
+        }
+
+        @Override
         public JSqlClient build() {
             if (entityManager == null) {
                 throw new IllegalStateException("The `entityManager` of SqlClient has not been configured");
             }
+            if (!microServiceName.isEmpty() && microServiceExchange == null) {
+                throw new IllegalStateException(
+                        "The `microServiceExchange` must be configured when `microServiceName` is configured"
+                );
+            }
             FilterManager filterManager = createFilterManager();
-            validateFilteredAssociations(filterManager);
+            validateAssociations(filterManager);
             if (databaseValidationMode != DatabaseValidationMode.NONE) {
                 ConnectionManager cm = connectionManager;
                 if (cm == null) {
@@ -811,7 +857,7 @@ class JSqlClientImpl implements JSqlClient {
                 }
                 DatabaseValidationException validationException = cm.execute(con -> {
                     try {
-                        return DatabaseValidators.validate(entityManager, con);
+                        return DatabaseValidators.validate(entityManager, microServiceName, con);
                     } catch (SQLException ex) {
                         throw new ExecutionException(
                                 "Cannot validate the database because of SQL exception",
@@ -831,7 +877,8 @@ class JSqlClientImpl implements JSqlClient {
             BinLog binLog = new BinLog(
                     entityManager,
                     binLogParser,
-                    triggers
+                    triggers,
+                    microServiceName
             );
             TransientResolverManager transientResolverManager =
                     new TransientResolverManager(
@@ -858,7 +905,9 @@ class JSqlClientImpl implements JSqlClient {
                     binLog,
                     filterManager,
                     transientResolverManager,
-                    new DraftInterceptorManager(interceptors)
+                    new DraftInterceptorManager(interceptors),
+                    microServiceName,
+                    microServiceExchange
             );
             filterManager.initialize(sqlClient);
             binLogParser.initialize(sqlClient, binLogObjectMapper);
@@ -890,7 +939,7 @@ class JSqlClientImpl implements JSqlClient {
             }
             List<Filter<?>> mergedFilters = new ArrayList<>(filters);
             List<Filter<?>> mergedDisabledFilters = new ArrayList<>(disabledFilters);
-            for (ImmutableType type : entityManager.getAllTypes()) {
+            for (ImmutableType type : entityManager.getAllTypes(microServiceName)) {
                 Filter<?> notDeletedFilter = builtInFilters.getDeclaredNotDeletedFilter(type);
                 Filter<?> alreadyDeletedFilter = builtInFilters.getDeclaredAlreadyDeletedFilter(type);
                 if (notDeletedFilter != null) {
@@ -904,21 +953,27 @@ class JSqlClientImpl implements JSqlClient {
             return new FilterManager(builtInFilters, mergedFilters, mergedDisabledFilters);
         }
 
-        private void validateFilteredAssociations(FilterManager filterManager) {
-            for (ImmutableType type : entityManager.getAllTypes()) {
+        private void validateAssociations(FilterManager filterManager) {
+            for (ImmutableType type : entityManager.getAllTypes(microServiceName)) {
                 if (type.isEntity()) {
                     for (ImmutableProp prop : type.getProps().values()) {
-                        if (!prop.isNullable() &&
-                                prop.isReference(TargetLevel.ENTITY) &&
-                                filterManager.contains(prop.getTargetType())
-                        ) {
-                            throw new ModelException(
-                                    "Illegal reference association property \"" +
-                                            prop +
-                                            "\", it must be nullable because the target type \"" +
-                                            prop.getTargetType() +
-                                            "\" may be handled by some global filters"
-                            );
+                        if (!prop.isNullable() && prop.isReference(TargetLevel.ENTITY) && !prop.isTransient()) {
+                            if (prop.isRemote()) {
+                                throw new ModelException(
+                                        "Illegal reference association property \"" +
+                                                prop +
+                                                "\", it must be nullable because it is remote association"
+                                );
+                            }
+                            if (filterManager.contains(prop.getTargetType())) {
+                                throw new ModelException(
+                                        "Illegal reference association property \"" +
+                                                prop +
+                                                "\", it must be nullable because the target type \"" +
+                                                prop.getTargetType() +
+                                                "\" may be handled by some global filters"
+                                );
+                            }
                         }
                     }
                 }

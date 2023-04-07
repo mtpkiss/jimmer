@@ -60,6 +60,8 @@ public abstract class AbstractDataLoader {
     private final Connection con;
 
     private final ImmutableProp prop;
+
+    private final boolean remote;
     
     private final ImmutableProp sourceIdProp;
     
@@ -88,7 +90,7 @@ public abstract class AbstractDataLoader {
             int limit,
             int offset
     ) {
-        if (!prop.isAssociation(TargetLevel.PERSISTENT) && !prop.hasTransientResolver()) {
+        if (!prop.isAssociation(TargetLevel.ENTITY) && !prop.hasTransientResolver()) {
             throw new IllegalArgumentException(
                     "\"" + prop + "\" is neither association nor transient with resolver"
             );
@@ -137,6 +139,7 @@ public abstract class AbstractDataLoader {
         this.sqlClient = sqlClient;
         this.con = con;
         this.prop = prop;
+        this.remote = prop.isRemote();
         this.sourceIdProp = prop.getDeclaringType().getIdProp();
         this.targetIdProp = prop.getTargetType() != null ? prop.getTargetType().getIdProp() : null;
         if (prop.isAssociation(TargetLevel.PERSISTENT)) {
@@ -196,7 +199,7 @@ public abstract class AbstractDataLoader {
         if (prop.getStorage() instanceof ColumnDefinition) {
             return (Map<ImmutableSpi, Object>)(Map<?, ?>) loadParents(sources);
         }
-        if (prop.isReferenceList(TargetLevel.PERSISTENT)) {
+        if (prop.isReferenceList(TargetLevel.ENTITY)) {
             return (Map<ImmutableSpi, Object>)(Map<?, ?>) loadTargetMultiMap(sources);
         }
         return (Map<ImmutableSpi, Object>)(Map<?, ?>) loadTargetMap(sources);
@@ -282,7 +285,7 @@ public abstract class AbstractDataLoader {
     private Map<ImmutableSpi, ImmutableSpi> loadParents(Collection<ImmutableSpi> sources) {
         Cache<Object, Object> fkCache = sqlClient.getCaches().getPropertyCache(prop);
         SortedMap<String, Object> parameters = getParameters();
-        if (!useCache(fkCache, parameters)) {
+        if (!remote && !useCache(fkCache, parameters)) {
             return loadParentsDirectly(sources);
         }
         Map<Object, Object> fkMap = new LinkedHashMap<>(
@@ -305,17 +308,22 @@ public abstract class AbstractDataLoader {
             }
         }
         if (!missedFkSourceIds.isEmpty()) {
-            CacheEnvironment<Object, Object> env = new CacheEnvironment<>(
-                    sqlClient,
-                    con,
-                    this::queryForeignKeyMap,
-                    false
-            );
-            Map<Object, Object> cachedFkMap = parameters != null ?
-                    ((Cache.Parameterized<Object, Object>)fkCache).getAll(missedFkSourceIds, parameters, env) :
-                    fkCache.getAll(missedFkSourceIds, env);
+            Map<Object, Object> missedFkMap;
+            if (remote) {
+                missedFkMap = queryForeignKeyMap(missedFkSourceIds);
+            } else {
+                CacheEnvironment<Object, Object> env = new CacheEnvironment<>(
+                        sqlClient,
+                        con,
+                        this::queryForeignKeyMap,
+                        false
+                );
+                missedFkMap = parameters != null ?
+                        ((Cache.Parameterized<Object, Object>) fkCache).getAll(missedFkSourceIds, parameters, env) :
+                        fkCache.getAll(missedFkSourceIds, env);
+            }
             for (Object sourceId : missedFkSourceIds) {
-                Object fk = cachedFkMap.get(sourceId);
+                Object fk = missedFkMap.get(sourceId);
                 if (fk != null) {
                     fkMap.put(sourceId, fk);
                 }
@@ -396,21 +404,51 @@ public abstract class AbstractDataLoader {
     private Map<ImmutableSpi, ImmutableSpi> loadTargetMap(Collection<ImmutableSpi> sources) {
         Cache<Object, Object> cache = sqlClient.getCaches().getPropertyCache(prop);
         SortedMap<String, Object> parameters = getParameters();
-        if (!useCache(cache, parameters)) {
+        if (!remote && !useCache(cache, parameters)) {
             return loadTargetMapDirectly(sources);
         }
+        if (remote && prop.getMappedBy() != null) {
+            List<Tuple2<Object, ImmutableSpi>> tuples;
+            try {
+                tuples = sqlClient
+                        .getMicroServiceExchange()
+                        .findByAssociatedIds(
+                                prop.getTargetType().getMicroServiceName(),
+                                prop.getMappedBy(),
+                                toSourceIds(sources),
+                                fetcher
+                        );
+            } catch (Exception ex) {
+                throw new ExecutionException(
+                        "Cannot load the remote association \"" +
+                                prop +
+                                "\" because error raised",
+                        ex
+                );
+            }
+            return Utils.joinCollectionAndMap(
+                    sources,
+                    this::toSourceId,
+                    Tuple2.toMap(tuples)
+            );
+        }
         List<Object> sourceIds = toSourceIds(sources);
-        CacheEnvironment<Object, Object> env = new CacheEnvironment<>(
-                sqlClient,
-                con,
-                it -> Tuple2.toMap(
-                        querySourceTargetIdPairs(it)
-                ),
-                false
-        );
-        Map<Object, Object> idMap = parameters != null ?
-                ((Cache.Parameterized<Object, Object>)cache).getAll(sourceIds, parameters, env) :
-                cache.getAll(sourceIds, env);
+        Map<Object, Object> idMap;
+        if (remote) {
+            idMap = Tuple2.toMap(querySourceTargetIdPairs(sourceIds));
+        } else {
+            CacheEnvironment<Object, Object> env = new CacheEnvironment<>(
+                    sqlClient,
+                    con,
+                    it -> Tuple2.toMap(
+                            querySourceTargetIdPairs(it)
+                    ),
+                    false
+            );
+            idMap = parameters != null ?
+                    ((Cache.Parameterized<Object, Object>) cache).getAll(sourceIds, parameters, env) :
+                    cache.getAll(sourceIds, env);
+        }
         Map<Object, ImmutableSpi> targetMap = Utils.toMap(
                 this::toTargetId,
                 findTargets(new LinkedHashSet<>(idMap.values()))
@@ -445,21 +483,53 @@ public abstract class AbstractDataLoader {
     private Map<ImmutableSpi, List<ImmutableSpi>> loadTargetMultiMap(Collection<ImmutableSpi> sources) {
         Cache<Object, List<Object>> cache = sqlClient.getCaches().getPropertyCache(prop);
         SortedMap<String, Object> parameters = getParameters();
-        if (!useCache(cache, parameters)) {
+        if (!remote && !useCache(cache, parameters)) {
             return loadTargetMultiMapDirectly(sources);
         }
+        if (remote && prop.getMappedBy() != null) {
+            List<Tuple2<Object, ImmutableSpi>> tuples;
+            try {
+                tuples = sqlClient
+                        .getMicroServiceExchange()
+                        .findByAssociatedIds(
+                                prop.getTargetType().getMicroServiceName(),
+                                prop.getMappedBy(),
+                                toSourceIds(sources),
+                                fetcher
+                        );
+            } catch (Exception ex) {
+                throw new ExecutionException(
+                        "Cannot load the remote association \"" +
+                                prop +
+                                "\" because error raised",
+                        ex
+                );
+            }
+            return Utils.joinCollectionAndMap(
+                    sources,
+                    this::toSourceId,
+                    Tuple2.toMultiMap(tuples)
+            );
+        }
         List<Object> sourceIds = toSourceIds(sources);
-        CacheEnvironment<Object, List<Object>> env = new CacheEnvironment<>(
-                sqlClient,
-                con,
-                it -> Tuple2.toMultiMap(
-                        querySourceTargetIdPairs(it)
-                ),
-                false
-        );
-        Map<Object, List<Object>> idMultiMap = parameters != null ?
-                ((Cache.Parameterized<Object, List<Object>>)cache).getAll(sourceIds, parameters, env) :
-                cache.getAll(sourceIds, env);
+        Map<Object, List<Object>> idMultiMap;
+        if (remote) {
+            idMultiMap = Tuple2.toMultiMap(
+                    querySourceTargetIdPairs(sourceIds)
+            );
+        } else {
+            CacheEnvironment<Object, List<Object>> env = new CacheEnvironment<>(
+                    sqlClient,
+                    con,
+                    it -> Tuple2.toMultiMap(
+                            querySourceTargetIdPairs(it)
+                    ),
+                    false
+            );
+            idMultiMap = parameters != null ?
+                    ((Cache.Parameterized<Object, List<Object>>) cache).getAll(sourceIds, parameters, env) :
+                    cache.getAll(sourceIds, env);
+        }
         Map<Object, ImmutableSpi> targetMap = Utils.toMap(
                 this::toTargetId,
                 findTargets(
@@ -503,7 +573,7 @@ public abstract class AbstractDataLoader {
         
         if (sourceIds.size() == 1) {
             Object sourceId = sourceIds.iterator().next();
-            List<Object> targetIds = Queries.createQuery(sqlClient, prop.getDeclaringType(), ExecutionPurpose.LOADER, true, (q, source) -> {
+            List<Object> targetIds = Queries.createQuery(sqlClient, prop.getDeclaringType(), ExecutionPurpose.LOAD, true, (q, source) -> {
                 Expression<Object> pkExpr = source.get(sourceIdProp.getName());
                 Table<?> targetTable = source.join(prop.getName());
                 Expression<Object> fkExpr = targetTable.get(targetIdProp.getName());
@@ -517,7 +587,7 @@ public abstract class AbstractDataLoader {
             return Utils.toMap(sourceId, targetIds);
         }
         List<Tuple2<Object, Object>> tuples = Queries
-                .createQuery(sqlClient, prop.getDeclaringType(), ExecutionPurpose.LOADER, true, (q, source) -> {
+                .createQuery(sqlClient, prop.getDeclaringType(), ExecutionPurpose.LOAD, true, (q, source) -> {
                     Expression<Object> pkExpr = source.get(sourceIdProp.getName());
                     Table<?> targetTable = source.join(prop.getName());
                     Expression<Object> fkExpr = targetTable.get(targetIdProp.getName());
@@ -547,7 +617,7 @@ public abstract class AbstractDataLoader {
             if (useMiddleTable) {
                 if (sourceIds.size() == 1) {
                     Object sourceId = sourceIds.iterator().next();
-                    List<Object> targetIds = Queries.createAssociationQuery(sqlClient, AssociationType.of(prop), ExecutionPurpose.LOADER, (q, association) -> {
+                    List<Object> targetIds = Queries.createAssociationQuery(sqlClient, AssociationType.of(prop), ExecutionPurpose.LOAD, (q, association) -> {
                         Expression<Object> sourceIdExpr = association.source(prop.getDeclaringType()).get(sourceIdProp.getName());
                         Expression<Object> targetIdExpr = association.target().get(targetIdProp.getName());
                         q.where(sourceIdExpr.eq(sourceId));
@@ -557,7 +627,7 @@ public abstract class AbstractDataLoader {
                     }).limit(limit, offset).execute(con);
                     return Utils.toTuples(sourceId, targetIds);
                 }
-                return Queries.createAssociationQuery(sqlClient, AssociationType.of(prop), ExecutionPurpose.LOADER, (q, association) -> {
+                return Queries.createAssociationQuery(sqlClient, AssociationType.of(prop), ExecutionPurpose.LOAD, (q, association) -> {
                     Expression<Object> sourceIdExpr = association.source(prop.getDeclaringType()).get(sourceIdProp.getName());
                     Expression<Object> targetIdExpr = association.target().get(targetIdProp.getName());
                     q.where(sourceIdExpr.in(sourceIds));
@@ -580,7 +650,7 @@ public abstract class AbstractDataLoader {
     @SuppressWarnings("unchecked")
     private List<ImmutableSpi> queryTargets(Collection<Object> targetIds) {
 
-        return Queries.createQuery(sqlClient, prop.getTargetType(), ExecutionPurpose.LOADER, true, (q, target) -> {
+        return Queries.createQuery(sqlClient, prop.getTargetType(), ExecutionPurpose.LOAD, true, (q, target) -> {
             Expression<Object> idExpr = target.get(targetIdProp.getName());
             q.where(idExpr.in(targetIds));
             if (!applyPropFilter(q, target, targetIds) & !applyGlobalFilter(q, target)) {
@@ -597,10 +667,9 @@ public abstract class AbstractDataLoader {
             Collection<Object> sourceIds,
             Function<Table<ImmutableSpi>, Selection<?>> valueExpressionGetter
     ) {
-
         if (sourceIds.size() == 1) {
             Object sourceId = sourceIds.iterator().next();
-            List<R> results = Queries.createQuery(sqlClient, prop.getTargetType(), ExecutionPurpose.LOADER, true, (q, target) -> {
+            List<R> results = Queries.createQuery(sqlClient, prop.getTargetType(), ExecutionPurpose.LOAD, true, (q, target) -> {
                 Expression<Object> sourceIdExpr = target
                         .inverseJoin(prop)
                         .get(sourceIdProp.getName());
@@ -612,7 +681,7 @@ public abstract class AbstractDataLoader {
             }).limit(limit, offset).execute(con);
             return Utils.toTuples(sourceId, results);
         }
-        return Queries.createQuery(sqlClient, prop.getTargetType(), ExecutionPurpose.LOADER, true, (q, target) -> {
+        return Queries.createQuery(sqlClient, prop.getTargetType(), ExecutionPurpose.LOAD, true, (q, target) -> {
             Expression<Object> sourceIdExpr = target
                     .inverseJoin(prop)
                     .get(sourceIdProp.getName());
@@ -625,6 +694,9 @@ public abstract class AbstractDataLoader {
     }
 
     private boolean applyGlobalFilter(Sortable sortable, Table<?> table) {
+        if (remote) {
+            return false;
+        }
         SortableImplementor sortableImplementor = (SortableImplementor)sortable;
         Filter<Props> globalFiler = this.globalFiler;
         if (globalFiler instanceof CacheableFilter<?>) {
@@ -667,7 +739,7 @@ public abstract class AbstractDataLoader {
             Table<?> table
     ) {
         List<OrderedItem> orderedItems = prop.getOrderedItems();
-        if (!orderedItems.isEmpty()) {
+        if (!orderedItems.isEmpty() && !remote) {
             for (OrderedItem orderedItem : orderedItems) {
                 Expression<?> expr = table.get(orderedItem.getProp().getName());
                 if (orderedItem.isDesc()) {
@@ -700,13 +772,29 @@ public abstract class AbstractDataLoader {
 
     @SuppressWarnings("unchecked")
     private List<ImmutableSpi> findTargets(Collection<Object> targetIds) {
-        if (fetcher.getFieldMap().size() > 1) {
-            return ((EntitiesImpl)sqlClient.getEntities()).forLoader().forConnection(con).findByIds(
-                    fetcher,
-                    targetIds
-            );
+        if (fetcher.getFieldMap().size() < 2 && !remote) {
+            return makeIdOnlyTargets(targetIds);
         }
-        return makeIdOnlyTargets(targetIds);
+        if (remote) {
+            try {
+                return sqlClient.getMicroServiceExchange().findByIds(
+                        prop.getTargetType().getMicroServiceName(),
+                        targetIds,
+                        fetcher
+                );
+            } catch (Exception ex) {
+                throw new ExecutionException(
+                        "Cannot load the remote association \"" +
+                                prop +
+                                "\" because error raised",
+                        ex
+                );
+            }
+        }
+        return ((EntitiesImpl)sqlClient.getEntities()).forLoader().forConnection(con).findByIds(
+                fetcher,
+                targetIds
+        );
     }
 
     private List<ImmutableSpi> makeIdOnlyTargets(Collection<Object> targetIds) {
@@ -748,6 +836,9 @@ public abstract class AbstractDataLoader {
     private boolean useCache(Cache<?, ?> cache, Map<String, Object> parameters) {
         if (cache == null) {
             return false;
+        }
+        if (remote) {
+            return true;
         }
         if (propFilter != null) {
             CacheAbandonedCallback callback = sqlClient.getCaches().getAbandonedCallback();
@@ -816,7 +907,7 @@ public abstract class AbstractDataLoader {
         if (noFilter) {
             targets = findTargets(targetIds);
         } else {
-            targets = Queries.createQuery(sqlClient, prop.getTargetType(), ExecutionPurpose.LOADER, true, (q, target) -> {
+            targets = Queries.createQuery(sqlClient, prop.getTargetType(), ExecutionPurpose.LOAD, true, (q, target) -> {
                 Expression<Object> pkExpr = target.get(targetIdProp.getName());
                 q.where(pkExpr.in(targetIds));
                 applyPropFilter(q, target, map.keySet());
@@ -881,7 +972,6 @@ public abstract class AbstractDataLoader {
         }
         return fetchedMap;
     }
-
 
     public static Connection transientResolverConnection() {
         Connection con = TRANSIENT_RESOLVER_CON_LOCAL.get();

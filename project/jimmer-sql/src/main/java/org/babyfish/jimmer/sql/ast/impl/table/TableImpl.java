@@ -110,6 +110,11 @@ class TableImpl<E> extends AbstractDataManager<String, TableImplementor<?>> impl
     }
 
     @Override
+    public boolean isRemote() {
+        return joinProp != null && joinProp.isRemote();
+    }
+
+    @Override
     public ImmutableProp getJoinProp() {
         return joinProp;
     }
@@ -173,6 +178,13 @@ class TableImpl<E> extends AbstractDataManager<String, TableImplementor<?>> impl
     @SuppressWarnings("unchecked")
     @Override
     public <XE extends Expression<?>> XE get(String prop) {
+        if (isRemote() && !immutableType.getIdProp().getName().equals(prop)) {
+            throw new IllegalArgumentException(
+                    "The current table is remote so that only the id property \"" +
+                            immutableType.getIdProp() +
+                            "\" can be accessed"
+            );
+        }
         ImmutableProp immutableProp = immutableType.getProp(prop);
         return (XE) PropExpressionImpl.of(this, immutableProp);
     }
@@ -250,7 +262,22 @@ class TableImpl<E> extends AbstractDataManager<String, TableImplementor<?>> impl
     @Override
     public <X> TableImplementor<X> joinImplementor(String prop, JoinType joinType, ImmutableType treatedAs) {
         ImmutableProp immutableProp = immutableType.getProp(prop);
-        if (!immutableProp.isAssociation(TargetLevel.PERSISTENT)) {
+        if (!immutableProp.isAssociation(TargetLevel.ENTITY)) {
+            if (isRemote()) {
+                throw new IllegalStateException(
+                        "The current table is remote so that join is not supported"
+                );
+            }
+            if (immutableProp.isTransient()) {
+                throw new IllegalArgumentException(
+                        "\"" + prop + "\" cannot be transient"
+                );
+            }
+            if (immutableProp.isRemote() && immutableProp.getMappedBy() != null) {
+                throw new IllegalArgumentException(
+                        "\"" + prop + "\" cannot be remote and reversed(with `mappedBy`)"
+                );
+            }
             throw new IllegalArgumentException(
                     "\"" +
                             prop +

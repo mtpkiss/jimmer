@@ -38,6 +38,18 @@ public abstract class AbstractMutableStatementImpl implements FilterableImplemen
         if (!type.isEntity()) {
             throw new IllegalArgumentException("\"" + type + "\" is not entity");
         }
+        if (sqlClient != null && !sqlClient.getMicroServiceName().equals(type.getMicroServiceName())) {
+            throw new IllegalArgumentException(
+                    "The sql client and entity type \"" +
+                            type +
+                            "\" do not belong to the same micro service: " +
+                            "{sqlClient: \"" +
+                            sqlClient.getMicroServiceName() +
+                            "\", entity: \"" +
+                            type.getMicroServiceName() +
+                            "\"}"
+            );
+        }
         this.sqlClient = sqlClient;
         this.type = type;
     }
@@ -49,10 +61,25 @@ public abstract class AbstractMutableStatementImpl implements FilterableImplemen
         if (table.__unwrap() != null) {
             throw new IllegalArgumentException("table proxy cannot be wrapper");
         }
+        if (table.__prop() != null) {
+            throw new IllegalArgumentException("table proxy must be root table");
+        }
         this.sqlClient = Objects.requireNonNull(
                 sqlClient,
                 "sqlClient cannot be null"
         );
+        if (!sqlClient.getMicroServiceName().equals(table.getImmutableType().getMicroServiceName())) {
+            throw new IllegalArgumentException(
+                    "The sql client and entity type \"" +
+                            table.getImmutableType() +
+                            "\" do not belong to the same micro service: " +
+                            "{sqlClient: \"" +
+                            sqlClient.getMicroServiceName() +
+                            "\", entity: \"" +
+                            table.getImmutableType().getMicroServiceName() +
+                            "\"}"
+            );
+        }
         this.table = table;
         this.type = table.getImmutableType();
     }

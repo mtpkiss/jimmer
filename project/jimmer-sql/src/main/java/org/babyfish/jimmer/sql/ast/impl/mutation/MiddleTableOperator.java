@@ -54,13 +54,16 @@ class MiddleTableOperator {
             ImmutableProp prop,
             MutationTrigger trigger
     ) {
+        ImmutableProp mappedBy = prop.getMappedBy();
+        if (prop.isRemote() && mappedBy != null) {
+            return null;
+        }
         Storage storage = prop.getStorage();
         if (storage instanceof MiddleTable) {
             return new MiddleTableOperator(
                     sqlClient, con, prop, (MiddleTable) storage, trigger
             );
         }
-        ImmutableProp mappedBy = prop.getMappedBy();
         if (mappedBy != null) {
             storage = mappedBy.getStorage();
             if (storage instanceof MiddleTable) {

@@ -60,7 +60,7 @@ public class FetcherGenerator {
                 .addModifiers(Modifier.PUBLIC)
                 .superclass(
                         ParameterizedTypeName.get(
-                                Constants.ABSTRACT_TYPE_FETCHER_CLASS_NAME,
+                                Constants.ABSTRACT_TYPED_FETCHER_CLASS_NAME,
                                 type.getClassName(),
                                 type.getFetcherClassName()
                         )
@@ -79,7 +79,9 @@ public class FetcherGenerator {
                         addPropByBoolean(prop);
                         if (prop.isAssociation(true)) {
                             addAssociationProp(prop);
-                            addAssociationPropByFieldConfig(prop);
+                            if (!prop.isRemote()) {
+                                addAssociationPropByFieldConfig(prop);
+                            }
                         }
                     }
                 }

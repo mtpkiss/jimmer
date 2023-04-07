@@ -49,4 +49,14 @@ public enum SaveErrorCode {
 
     @ErrorField(name = "exportedPath", type = ExportedSavePath.class)
     NEITHER_ID_NOR_KEY,
+
+
+    @ErrorField(name = "exportedPath", type = ExportedSavePath.class)
+    REVERSED_REMOTE_ASSOCIATION,
+
+    @ErrorField(name = "exportedPath", type = ExportedSavePath.class)
+    LONG_REMOTE_ASSOCIATION,
+
+    @ErrorField(name = "exportedPath", type = ExportedSavePath.class)
+    FAILED_REMOTE_VALIDATION,
 }

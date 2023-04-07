@@ -19,6 +19,7 @@ import org.babyfish.jimmer.sql.ast.mutation.SaveMode;
 import org.babyfish.jimmer.sql.ast.mutation.SimpleSaveResult;
 import org.babyfish.jimmer.sql.ast.table.Table;
 import org.babyfish.jimmer.sql.ast.tuple.Tuple2;
+import org.babyfish.jimmer.sql.fetcher.impl.FetcherImpl;
 import org.babyfish.jimmer.sql.meta.*;
 import org.babyfish.jimmer.sql.runtime.*;
 
@@ -117,11 +118,21 @@ class Saver {
         ImmutableType currentType = currentDraftSpi.__type();
 
         for (ImmutableProp prop : currentType.getProps().values()) {
-            if (prop.isAssociation(TargetLevel.PERSISTENT) &&
+            if (prop.isAssociation(TargetLevel.ENTITY) &&
                     prop.getStorage() instanceof ColumnDefinition == forParent &&
                     currentDraftSpi.__isLoaded(prop.getId())
             ) {
                 ImmutableType targetType = prop.getTargetType();
+                if (prop.isRemote() && prop.getMappedBy() != null) {
+                    throw new SaveException(
+                            SaveErrorCode.REVERSED_REMOTE_ASSOCIATION,
+                            path,
+                            "The property \"" +
+                                    prop +
+                                    "\" which is reversed(with `mappedBy`) remote(across different microservices) association " +
+                                    "cannot be supported by save command"
+                    );
+                }
                 int currentIdPropId = currentType.getIdProp().getId();
                 Object currentId = currentDraftSpi.__isLoaded(currentIdPropId) ?
                         currentDraftSpi.__get(currentIdPropId) :
@@ -129,7 +140,7 @@ class Saver {
 
                 ImmutableProp mappedBy = prop.getMappedBy();
                 ChildTableOperator childTableOperator = null;
-                if (mappedBy != null && mappedBy.getStorage() instanceof ColumnDefinition) {
+                if (!prop.isRemote() && mappedBy != null && mappedBy.getStorage() instanceof ColumnDefinition) {
                     childTableOperator = new ChildTableOperator(
                             data.getSqlClient(),
                             con,
@@ -165,6 +176,15 @@ class Saver {
                         for (DraftSpi associatedObject : associatedObjects) {
                             if (!isNonIdPropLoaded(associatedObject, false)) {
                                 idOnlyTargetIds.add(associatedObject.__get(targetIdPropId));
+                            } else if (prop.isRemote()) {
+                                throw new SaveException(
+                                        SaveErrorCode.LONG_REMOTE_ASSOCIATION,
+                                        path,
+                                        "The property \"" +
+                                                prop +
+                                                "\" is remote(across different microservices) association, " +
+                                                "but it has associated object which is not id-only"
+                                );
                             }
                         }
                     }
@@ -254,24 +274,51 @@ class Saver {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private void validateIdOnlyTargetIds(ImmutableProp prop, List<Object> targetIds) {
         if (targetIds.isEmpty()) {
             return;
         }
-        List<Object> existingTargetIds = Queries
-                .createQuery(
-                        data.getSqlClient(),
-                        prop.getTargetType(),
-                        ExecutionPurpose.MUTATE,
-                        true,
-                        (q, t) -> {
-                            PropExpression<Object> idExpr = t.get(prop.getTargetType().getIdProp().getName());
-                            q.where(idExpr.in(targetIds));
-                            return q.select(idExpr);
-                        }
-                ).execute(con);
         Set<Object> illegalTargetIds = new LinkedHashSet<>(targetIds);
-        illegalTargetIds.removeAll(new HashSet<>(existingTargetIds));
+        if (prop.isRemote()) {
+            int targetIdPropId = prop.getTargetType().getIdProp().getId();
+            List<ImmutableSpi> targets;
+            try {
+                targets = data
+                        .getSqlClient()
+                        .getMicroServiceExchange()
+                        .findByIds(
+                                prop.getTargetType().getMicroServiceName(),
+                                targetIds,
+                                new FetcherImpl<>((Class<ImmutableSpi>) (prop.getTargetType().getJavaClass()))
+                        );
+            } catch (Exception ex) {
+                throw new SaveException(
+                        SaveErrorCode.FAILED_REMOTE_VALIDATION,
+                        path,
+                        "Cannot validate the id-only associated objects of remote association \"" +
+                                prop +
+                                "\""
+                );
+            }
+            for (ImmutableSpi target : targets) {
+                illegalTargetIds.remove(target.__get(targetIdPropId));
+            }
+        } else {
+            List<Object> existingTargetIds = Queries
+                    .createQuery(
+                            data.getSqlClient(),
+                            prop.getTargetType(),
+                            ExecutionPurpose.MUTATE,
+                            true,
+                            (q, t) -> {
+                                PropExpression<Object> idExpr = t.get(prop.getTargetType().getIdProp().getName());
+                                q.where(idExpr.in(targetIds));
+                                return q.select(idExpr);
+                            }
+                    ).execute(con);
+            illegalTargetIds.removeAll(new HashSet<>(existingTargetIds));
+        }
         if (!illegalTargetIds.isEmpty()) {
             throw new SaveException(
                     SaveErrorCode.ILLEGAL_TARGET_ID,
@@ -425,7 +472,7 @@ class Saver {
                 props.add(prop);
                 Object value = draftSpi.__get(prop.getId());
                 if (value != null) {
-                    if (prop.isReference(TargetLevel.PERSISTENT)) {
+                    if (prop.isReference(TargetLevel.ENTITY)) {
                         value = ((ImmutableSpi) value).__get(prop.getTargetType().getIdProp().getId());
                     } else {
                         ScalarProvider<Object, Object> scalarProvider = data.getSqlClient().getScalarProvider(prop);
@@ -552,7 +599,7 @@ class Saver {
                 } else if (!prop.isId() && !excludeProps.contains(prop)) {
                     updatedProps.add(prop);
                     Object value = draftSpi.__get(prop.getId());
-                    if (value != null && prop.isReference(TargetLevel.PERSISTENT)) {
+                    if (value != null && prop.isReference(TargetLevel.ENTITY)) {
                         value = ((ImmutableSpi)value).__get(prop.getTargetType().getIdProp().getId());
                     }
                     updatedValues.add(value);
@@ -688,7 +735,7 @@ class Saver {
         List<ImmutableSpi> rows = Internal.requiresNewDraftContext(ctx -> {
             List<ImmutableSpi> list = Queries.createQuery(data.getSqlClient(), type, ExecutionPurpose.MUTATE, true, (q, table) -> {
                 for (ImmutableProp keyProp : actualKeyProps) {
-                    if (keyProp.isReference(TargetLevel.PERSISTENT)) {
+                    if (keyProp.isReference(TargetLevel.ENTITY)) {
                         ImmutableProp targetIdProp = keyProp.getTargetType().getIdProp();
                         Expression<Object> targetIdExpression =
                                 table

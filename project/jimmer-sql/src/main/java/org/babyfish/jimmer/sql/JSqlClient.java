@@ -139,6 +139,10 @@ public interface JSqlClient extends SubQueryProvider {
 
     Reader<?> getReader(ImmutableProp prop);
 
+    String getMicroServiceName();
+
+    MicroServiceExchange getMicroServiceExchange();
+
     interface Builder {
 
         int DEFAULT_BATCH_SIZE = 128;
@@ -222,6 +226,12 @@ public interface JSqlClient extends SubQueryProvider {
 
         @OldChain
         Builder setDatabaseValidationMode(DatabaseValidationMode mode);
+
+        @OldChain
+        Builder setMicroServiceName(String microServiceName);
+
+        @OldChain
+        Builder setMicroServiceExchange(MicroServiceExchange exchange);
 
         JSqlClient build();
     }
