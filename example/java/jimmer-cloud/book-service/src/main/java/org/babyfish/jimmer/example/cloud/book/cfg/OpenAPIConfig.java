@@ -14,7 +14,7 @@ public class OpenAPIConfig {
     @Bean
     public OpenAPI openAPI() {
         return new OpenAPI()
-                .info(new Info().title("cloud:store-service").version("0.7.24"))
+                .info(new Info().title("cloud:book-service").version("0.7.24"))
                 .components(
                         new Components()
                                 .addSecuritySchemes(

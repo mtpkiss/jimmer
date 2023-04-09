@@ -26,8 +26,10 @@ public class JimmerConfig {
         return new RestTemplate();
     }
 
-    @Bean
-    public MicroServiceExporterAgent microServiceExporterAgent(JSqlClient sqlClient, ObjectMapper mapper) {
-        return new MicroServiceExporterController(sqlClient, mapper);
-    }
+    // 待解决问题
+    // 什么鬼？在当前项目声明就可以被负载均衡器调，在starter中声明就不能被负载均衡器调（直接访问仍然可以）
+//    @Bean
+//    public MicroServiceExporterAgent microServiceExporterAgent(JSqlClient sqlClient, ObjectMapper mapper) {
+//        return new MicroServiceExporterController(sqlClient, mapper);
+//    }
 }
