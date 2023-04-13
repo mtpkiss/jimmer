@@ -2,7 +2,7 @@ package org.babyfish.jimmer.apt.generator;
 
 import com.squareup.javapoet.*;
 import org.babyfish.jimmer.apt.GeneratorException;
-import org.babyfish.jimmer.apt.TypeUtils;
+import org.babyfish.jimmer.apt.Context;
 import org.babyfish.jimmer.apt.meta.ImmutableProp;
 import org.babyfish.jimmer.apt.meta.ImmutableType;
 import org.babyfish.jimmer.lang.NewChain;
@@ -14,7 +14,7 @@ import java.io.IOException;
 
 public class FetcherGenerator {
 
-    private final TypeUtils typeUtils;
+    private final Context context;
 
     private final ImmutableType type;
 
@@ -23,11 +23,11 @@ public class FetcherGenerator {
     private TypeSpec.Builder typeBuilder;
 
     public FetcherGenerator(
-            TypeUtils typeUtils,
+            Context context,
             ImmutableType type,
             Filer filer
     ) {
-        this.typeUtils = typeUtils;
+        this.context = context;
         this.type = type;
         this.filer = filer;
     }
@@ -203,10 +203,10 @@ public class FetcherGenerator {
     }
 
     private void addAssociationPropByFieldConfig(ImmutableProp prop) {
-        boolean recursive = typeUtils.isSubType(
+        boolean recursive = context.isSubType(
                 prop.getElementType(),
                 type.getTypeElement().asType()
-        );
+        ) && prop.getManyToManyViewBaseProp() == null;
         ClassName fieldConfigClassName;
         if (recursive && prop.isList()) {
             fieldConfigClassName = Constants.RECURSIVE_LIST_FIELD_CONFIG_CLASS_NAME;
@@ -234,7 +234,7 @@ public class FetcherGenerator {
                                 ParameterizedTypeName.get(
                                         fieldConfigClassName,
                                         prop.getElementTypeName(),
-                                        typeUtils.getImmutableType(prop.getElementType()).getTableClassName()
+                                        context.getImmutableType(prop.getElementType()).getTableClassName()
                                 )
                         ),
                         "fieldConfig"
@@ -283,7 +283,7 @@ public class FetcherGenerator {
 
     private void addCreatorByBoolean() {
         MethodSpec.Builder builder = MethodSpec
-                .methodBuilder("createChildFetcher")
+                .methodBuilder("createFetcher")
                 .addModifiers(Modifier.PROTECTED)
                 .addParameter(
                         org.babyfish.jimmer.meta.ImmutableProp.class,
@@ -298,7 +298,7 @@ public class FetcherGenerator {
 
     private void addCreatorByFieldConfig() {
         MethodSpec.Builder builder = MethodSpec
-                .methodBuilder("createChildFetcher")
+                .methodBuilder("createFetcher")
                 .addModifiers(Modifier.PROTECTED)
                 .addParameter(
                         org.babyfish.jimmer.meta.ImmutableProp.class,

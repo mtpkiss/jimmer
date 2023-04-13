@@ -55,6 +55,22 @@ class FieldImpl implements Field {
         this.implicit = implicit;
     }
 
+    FieldImpl(
+            FieldImpl base,
+            FetcherImpl<?> childFetcher
+    ) {
+        this.entityType = base.entityType;
+        this.prop = base.prop;
+        this.filter = base.filter;
+        this.batchSize = base.batchSize;
+        this.limit = base.limit;
+        this.offset = base.offset;
+        this.recursionStrategy = base.recursionStrategy;
+        this.implicit = base.implicit;
+        this.childFetcher = childFetcher;
+        this.isSimpleField = determineIsSimpleField();
+    }
+
     @Override
     public ImmutableType getEntityType() {
         return entityType;

@@ -265,6 +265,11 @@ class TableImpl<E> extends AbstractDataManager<String, TableImplementor<?>> impl
     @Override
     public <X> TableImplementor<X> joinImplementor(String prop, JoinType joinType, ImmutableType treatedAs) {
         ImmutableProp immutableProp = immutableType.getProp(prop);
+        ImmutableProp manyToManyViewProp = immutableProp.getManyToManyViewBaseProp();
+        if (manyToManyViewProp != null) {
+            return (TableImplementor<X>) ((TableImpl<?>)join0(false, manyToManyViewProp, joinType))
+                    .join0(false, immutableProp.getManyToManyViewBaseDeeperProp(), joinType);
+        }
         if (!immutableProp.isAssociation(TargetLevel.ENTITY)) {
             if (isRemote()) {
                 throw new IllegalStateException(
@@ -422,7 +427,7 @@ class TableImpl<E> extends AbstractDataManager<String, TableImplementor<?>> impl
         }
         if (immutableType != fetcher.getImmutableType()) {
             throw new IllegalArgumentException(
-                    "Illegal fetcher type, current table is \"" +
+                    "Illegal fetcher type, the entity type of current table is \"" +
                             this +
                             "\" but the fetcher type is \"" +
                             fetcher.getImmutableType() +
