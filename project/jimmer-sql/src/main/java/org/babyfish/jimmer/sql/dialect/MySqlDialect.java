@@ -1,5 +1,8 @@
 package org.babyfish.jimmer.sql.dialect;
 
+/**
+ * For MySQL or TiDB
+ */
 public class MySqlDialect implements Dialect {
 
     @Override
@@ -18,7 +21,7 @@ public class MySqlDialect implements Dialect {
     }
 
     @Override
-    public boolean needDeletedAlias() {
+    public boolean isDeletedAliasRequired() {
         return true;
     }
 }
