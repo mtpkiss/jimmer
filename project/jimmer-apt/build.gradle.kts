@@ -69,7 +69,7 @@ publishing {
                 url.set("https://github.com/babyfish-ct/jimmer")
                 licenses {
                     license {
-                        name.set("MIT")
+                        name.set("Apache-2.0")
                         url.set("https://github.com/babyfish-ct/jimmer/blob/main/LICENSE")
                     }
                 }
