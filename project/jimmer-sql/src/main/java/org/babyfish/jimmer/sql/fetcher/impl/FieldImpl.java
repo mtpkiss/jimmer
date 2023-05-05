@@ -6,7 +6,6 @@ import org.babyfish.jimmer.sql.fetcher.Fetcher;
 import org.babyfish.jimmer.sql.fetcher.Field;
 import org.babyfish.jimmer.sql.fetcher.FieldFilter;
 import org.babyfish.jimmer.sql.fetcher.RecursionStrategy;
-import org.babyfish.jimmer.sql.meta.ColumnDefinition;
 import org.babyfish.jimmer.sql.meta.FormulaTemplate;
 
 class FieldImpl implements Field {
@@ -128,7 +127,7 @@ class FieldImpl implements Field {
     }
 
     private boolean determineIsSimpleField() {
-        if (prop.getStorage() instanceof ColumnDefinition) {
+        if (prop.isColumnDefinition()) {
             return childFetcher == null || childFetcher.getFieldMap().size() == 1;
         }
         if (prop.getSqlTemplate() instanceof FormulaTemplate) {

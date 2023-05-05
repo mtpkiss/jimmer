@@ -9,7 +9,6 @@ import org.babyfish.jimmer.sql.ManyToManyView;
 import org.babyfish.jimmer.sql.fetcher.FieldFilter;
 import org.babyfish.jimmer.sql.ast.table.Table;
 import org.babyfish.jimmer.sql.fetcher.*;
-import org.babyfish.jimmer.sql.meta.ColumnDefinition;
 import org.babyfish.jimmer.sql.meta.FormulaTemplate;
 
 import java.util.*;
@@ -483,7 +482,7 @@ public class FetcherImpl<E> implements Fetcher<E> {
 
     private static FetcherImpl<?> standardChildFetcher(FieldConfigImpl<?, Table<?>> loaderImpl) {
         FetcherImpl<?> childFetcher = loaderImpl.getChildFetcher();
-        if (!(loaderImpl.getProp().getStorage() instanceof ColumnDefinition)) {
+        if (!(loaderImpl.getProp().isColumnDefinition())) {
             return childFetcher;
         }
         RecursionStrategy<?> strategy = loaderImpl.getRecursionStrategy();

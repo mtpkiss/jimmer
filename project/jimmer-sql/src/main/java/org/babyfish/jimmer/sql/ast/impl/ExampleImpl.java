@@ -14,7 +14,6 @@ import org.babyfish.jimmer.sql.ast.StringExpression;
 import org.babyfish.jimmer.sql.ast.impl.query.MutableRootQueryImpl;
 import org.babyfish.jimmer.sql.ast.query.Example;
 import org.babyfish.jimmer.sql.ast.table.Table;
-import org.babyfish.jimmer.sql.meta.ColumnDefinition;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
@@ -174,7 +173,7 @@ public class ExampleImpl<E> implements Example<E> {
     public Predicate toPredicate(Table<?> table) {
         List<Predicate> predicates = new ArrayList<>();
         for (ImmutableProp prop : spi.__type().getProps().values()) {
-            if (spi.__isLoaded(prop.getId()) && prop.getStorage() instanceof ColumnDefinition) {
+            if (spi.__isLoaded(prop.getId()) && prop.isColumnDefinition()) {
                 Object value = valueOf(spi, prop);
                 Expression<Object> expr = expressionOf(table, prop, value == null ? JoinType.LEFT : JoinType.INNER);
                 Predicate predicate = null;

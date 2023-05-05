@@ -3,7 +3,6 @@ package org.babyfish.jimmer.meta;
 import kotlin.reflect.KClass;
 import org.babyfish.jimmer.Draft;
 import org.babyfish.jimmer.meta.impl.Metadata;
-import org.babyfish.jimmer.sql.meta.IdGenerator;
 import org.babyfish.jimmer.runtime.DraftContext;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -104,9 +103,6 @@ public interface ImmutableType {
     Set<ImmutableProp> getKeyProps();
 
     @NotNull
-    String getTableName();
-
-    @NotNull
     Map<String, ImmutableProp> getProps();
 
     @NotNull
@@ -115,17 +111,9 @@ public interface ImmutableType {
     @NotNull
     ImmutableProp getProp(int id);
 
-    @NotNull
-    List<ImmutableProp> getPropChainByColumnName(String columnName);
-
-    @NotNull
     Map<String, ImmutableProp> getSelectableProps();
 
-    @NotNull
     Map<String, ImmutableProp> getSelectableReferenceProps();
-
-    @Nullable
-    IdGenerator getIdGenerator();
 
     String getMicroServiceName();
 

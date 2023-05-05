@@ -4,7 +4,6 @@ import org.babyfish.jimmer.jackson.Converter;
 import org.babyfish.jimmer.meta.*;
 import org.babyfish.jimmer.sql.DissociateAction;
 import org.babyfish.jimmer.sql.association.Association;
-import org.babyfish.jimmer.sql.meta.ColumnDefinition;
 import org.babyfish.jimmer.sql.meta.SqlTemplate;
 import org.jetbrains.annotations.NotNull;
 
@@ -170,6 +169,11 @@ public abstract class AssociationProp implements ImmutableProp {
     }
 
     @Override
+    public ImmutableProp getReal() {
+        return this;
+    }
+
+    @Override
     public List<Dependency> getDependencies() {
         return Collections.emptyList();
     }
@@ -190,6 +194,21 @@ public abstract class AssociationProp implements ImmutableProp {
     }
 
     @Override
+    public boolean hasStorage() {
+        return true;
+    }
+
+    @Override
+    public boolean isColumnDefinition() {
+        return true;
+    }
+
+    @Override
+    public boolean isMiddleTableDefinition() {
+        return false;
+    }
+
+    @Override
     public String toString() {
         return declaringType + "." + getName();
     }
@@ -198,11 +217,8 @@ public abstract class AssociationProp implements ImmutableProp {
 
         private static final Method GETTER;
 
-        private final ColumnDefinition definition;
-
         Source(AssociationType declaringType) {
             super(declaringType);
-            definition = declaringType.getMiddleTable().getColumnDefinition();
         }
 
         @Override
@@ -240,12 +256,6 @@ public abstract class AssociationProp implements ImmutableProp {
             return GETTER.getAnnotations();
         }
 
-        @SuppressWarnings("unchecked")
-        @Override
-        public ColumnDefinition getStorage() {
-            return definition;
-        }
-
         static {
             try {
                 GETTER = Association.class.getMethod("source");
@@ -259,11 +269,8 @@ public abstract class AssociationProp implements ImmutableProp {
 
         private static final Method GETTER;
 
-        private final ColumnDefinition definition;
-
         Target(AssociationType declaringType) {
             super(declaringType);
-            definition = declaringType.getMiddleTable().getTargetColumnDefinition();
         }
 
         @Override
@@ -299,12 +306,6 @@ public abstract class AssociationProp implements ImmutableProp {
         @Override
         public Annotation[] getAnnotations() {
             return GETTER.getAnnotations();
-        }
-
-        @SuppressWarnings("unchecked")
-        @Override
-        public ColumnDefinition getStorage() {
-            return definition;
         }
 
         static {
