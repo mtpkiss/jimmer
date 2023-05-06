@@ -74,7 +74,7 @@ publishing {
             from(components["java"])
             pom {
                 name.set("jimmer")
-                description.set("immer for java")
+                description.set("A revolutionary ORM framework for both java and kotlin")
                 url.set("https://github.com/babyfish-ct/jimmer")
                 licenses {
                     license {
