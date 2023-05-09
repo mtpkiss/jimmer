@@ -178,40 +178,41 @@ public class Deleter {
         SqlBuilder builder = new SqlBuilder(new AstContext(data.getSqlClient()));
         Reader<Object> reader = (Reader<Object>) data.getSqlClient().getReader(childType.getIdProp());
         builder
-                .sql("select ")
-                .sql(childType.getIdProp().<ColumnDefinition>getStorage(strategy))
-                .sql(" from ")
+                .enter(SqlBuilder.ScopeType.SELECT)
+                .definition(childType.getIdProp().<ColumnDefinition>getStorage(strategy))
+                .leave()
+                .from()
                 .sql(childType.getTableName(strategy))
-                .sql(" where ")
-                .sql(null, definition, true)
-                .sql(" in (");
-        String separator = "";
+                .enter(SqlBuilder.ScopeType.WHERE)
+                .definition(null, definition, true)
+                .sql(" in ").enter(SqlBuilder.ScopeType.LIST);
         for (Object id : ids) {
-            builder.sql(separator);
-            separator = ", ";
-            builder.variable(id);
+            builder.separator().variable(id);
         }
-        builder.sql(")");
+        builder.leave().leave();
+
         Tuple2<String, List<Object>> sqlResult = builder.build();
         List<Object> childIds = data
                 .getSqlClient()
                 .getExecutor()
                 .execute(
-                        con,
-                        sqlResult.get_1(),
-                        sqlResult.get_2(),
-                        ExecutionPurpose.DELETE,
-                        ExecutorContext.create(data.getSqlClient()),
-                        null,
-                        stmt -> {
-                            List<Object> values = new ArrayList<>();
-                            try (ResultSet rs = stmt.executeQuery()) {
-                                while (rs.next()) {
-                                    values.add(reader.read(rs, new Reader.Col()));
+                        new Executor.Args<>(
+                                data.getSqlClient(),
+                                con,
+                                sqlResult.get_1(),
+                                sqlResult.get_2(),
+                                ExecutionPurpose.DELETE,
+                                null,
+                                stmt -> {
+                                    List<Object> values = new ArrayList<>();
+                                    try (ResultSet rs = stmt.executeQuery()) {
+                                        while (rs.next()) {
+                                            values.add(reader.read(rs, new Reader.Col()));
+                                        }
+                                    }
+                                    return values;
                                 }
-                            }
-                            return values;
-                        }
+                        )
                 );
         if (!childIds.isEmpty()) {
             if (data.getDissociateAction(backProp) != DissociateAction.DELETE) {
@@ -275,28 +276,30 @@ public class Deleter {
         } else {
             builder.nullVariable(prop.getElementClass());
         }
-        builder.sql(" where ");
-        builder.sql(null, definition, true);
-        builder.sql(" in (");
-        String separator = "";
+        builder
+                .enter(SqlBuilder.ScopeType.WHERE)
+                .definition(null, definition, true)
+                .sql(" in ")
+                .enter(SqlBuilder.ScopeType.LIST);
         for (Object id : ids) {
-            builder.sql(separator);
-            separator = ", ";
-            builder.variable(id);
+            builder.separator().variable(id);
         }
-        builder.sql(")");
+        builder.leave().leave();
+
         Tuple2<String, List<Object>> sqlResult = builder.build();
         int affectedRowCount = data
                 .getSqlClient()
                 .getExecutor()
                 .execute(
-                        con,
-                        sqlResult.get_1(),
-                        sqlResult.get_2(),
-                        ExecutionPurpose.DELETE,
-                        ExecutorContext.create(data.getSqlClient()),
-                        null,
-                        PreparedStatement::executeUpdate
+                        new Executor.Args<>(
+                                data.getSqlClient(),
+                                con,
+                                sqlResult.get_1(),
+                                sqlResult.get_2(),
+                                ExecutionPurpose.DELETE,
+                                null,
+                                PreparedStatement::executeUpdate
+                        )
                 );
         addOutput(AffectedTable.of(type), affectedRowCount);
     }
@@ -314,30 +317,32 @@ public class Deleter {
         MetadataStrategy strategy = data.getSqlClient().getMetadataStrategy();
         ColumnDefinition definition = type.getIdProp().getStorage(strategy);
         SqlBuilder builder = new SqlBuilder(new AstContext(data.getSqlClient()));
-        builder.sql("delete from ");
-        builder.sql(type.getTableName(strategy));
-        builder.sql(" where ");
-        builder.sql(null, definition, true);
-        builder.sql(" in (");
-        String separator = "";
+        builder
+                .sql("delete from ")
+                .sql(type.getTableName(strategy))
+                .enter(SqlBuilder.ScopeType.WHERE)
+                .definition(null, definition, true)
+                .sql(" in ")
+                .enter(SqlBuilder.ScopeType.LIST);
         for (Object id : ids) {
-            builder.sql(separator);
-            separator = ", ";
-            builder.variable(id);
+            builder.separator().variable(id);
         }
-        builder.sql(")");
+        builder.leave().leave();
+
         Tuple2<String, List<Object>> sqlResult = builder.build();
         int affectedRowCount = data
                 .getSqlClient()
                 .getExecutor()
                 .execute(
-                        con,
-                        sqlResult.get_1(),
-                        sqlResult.get_2(),
-                        ExecutionPurpose.DELETE,
-                        ExecutorContext.create(data.getSqlClient()),
-                        null,
-                        PreparedStatement::executeUpdate
+                        new Executor.Args<>(
+                                data.getSqlClient(),
+                                con,
+                                sqlResult.get_1(),
+                                sqlResult.get_2(),
+                                ExecutionPurpose.DELETE,
+                                null,
+                                PreparedStatement::executeUpdate
+                        )
                 );
         addOutput(AffectedTable.of(type), affectedRowCount);
     }

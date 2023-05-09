@@ -32,6 +32,8 @@ public interface JSqlClientImplementor extends JSqlClient {
 
     List<String> getExecutorContextPrefixes();
 
+    SqlFormatter getSqlFormatter();
+
     <T, S> ScalarProvider<T, S> getScalarProvider(Class<T> scalarType);
 
     <T, S> ScalarProvider<T, S> getScalarProvider(TypedProp<T, ?> prop);

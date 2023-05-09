@@ -1,6 +1,7 @@
 package org.babyfish.jimmer.sql;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.babyfish.jimmer.Input;
 import org.babyfish.jimmer.lang.NewChain;
 import org.babyfish.jimmer.lang.OldChain;
 import org.babyfish.jimmer.meta.ImmutableProp;
@@ -146,6 +147,22 @@ public interface JSqlClient extends SubQueryProvider {
         return save(entity, SaveMode.UPDATE_ONLY);
     }
 
+    default <E> SimpleSaveResult<E> save(Input<E> input, SaveMode mode) {
+        return save(input.toEntity(), mode);
+    }
+
+    default <E> SimpleSaveResult<E> save(Input<E> input) {
+        return save(input.toEntity(), SaveMode.UPSERT);
+    }
+
+    default <E> SimpleSaveResult<E> insert(Input<E> input) {
+        return save(input.toEntity(), SaveMode.INSERT_ONLY);
+    }
+
+    default <E> SimpleSaveResult<E> update(Input<E> input) {
+        return save(input.toEntity(), SaveMode.UPDATE_ONLY);
+    }
+
     default DeleteResult deleteById(Class<?> entityType, Object id, DeleteMode mode) {
         return getEntities().delete(entityType, id, mode);
     }
@@ -200,6 +217,9 @@ public interface JSqlClient extends SubQueryProvider {
          */
         @OldChain
         Builder setExecutorContextPrefixes(Collection<String> prefixes);
+
+        @OldChain
+        Builder setSqlFormatter(SqlFormatter formatter);
 
         @OldChain
         Builder setTransientResolverProvider(TransientResolverProvider transientResolverProvider);

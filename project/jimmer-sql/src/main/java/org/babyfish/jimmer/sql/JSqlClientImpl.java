@@ -59,6 +59,8 @@ class JSqlClientImpl implements JSqlClientImplementor {
 
     private final List<String> executorContextPrefixes;
 
+    private final SqlFormatter sqlFormatter;
+
     private final Map<Class<?>, IdGenerator> idGeneratorMap;
 
     private final ScalarProviderManager scalarProviderManager;
@@ -103,6 +105,7 @@ class JSqlClientImpl implements JSqlClientImplementor {
             Dialect dialect,
             Executor executor,
             List<String> executorContextPrefixes,
+            SqlFormatter sqlFormatter,
             Map<Class<?>, IdGenerator> idGeneratorMap,
             ScalarProviderManager scalarProviderManager,
             int defaultBatchSize,
@@ -135,6 +138,7 @@ class JSqlClientImpl implements JSqlClientImplementor {
                 executorContextPrefixes != null ?
                         Collections.unmodifiableList(executorContextPrefixes) :
                         null;
+        this.sqlFormatter = sqlFormatter;
         this.idGeneratorMap = idGeneratorMap;
         this.scalarProviderManager = scalarProviderManager;
         this.defaultBatchSize = defaultBatchSize;
@@ -187,6 +191,11 @@ class JSqlClientImpl implements JSqlClientImplementor {
     @Override
     public List<String> getExecutorContextPrefixes() {
         return executorContextPrefixes;
+    }
+
+    @Override
+    public SqlFormatter getSqlFormatter() {
+        return sqlFormatter;
     }
 
     @SuppressWarnings("unchecked")
@@ -376,6 +385,7 @@ class JSqlClientImpl implements JSqlClientImplementor {
                 dialect,
                 executor,
                 executorContextPrefixes,
+                sqlFormatter,
                 idGeneratorMap,
                 scalarProviderManager,
                 defaultBatchSize,
@@ -412,6 +422,7 @@ class JSqlClientImpl implements JSqlClientImplementor {
                 dialect,
                 executor,
                 executorContextPrefixes,
+                sqlFormatter,
                 idGeneratorMap,
                 scalarProviderManager,
                 defaultBatchSize,
@@ -443,6 +454,7 @@ class JSqlClientImpl implements JSqlClientImplementor {
                 dialect,
                 executor,
                 executorContextPrefixes,
+                sqlFormatter,
                 idGeneratorMap,
                 scalarProviderManager,
                 defaultBatchSize,
@@ -521,6 +533,8 @@ class JSqlClientImpl implements JSqlClientImplementor {
         private Executor executor;
 
         private List<String> executorContextPrefixes;
+
+        private SqlFormatter sqlFormatter = SqlFormatter.SIMPLE;
 
         private TransientResolverProvider transientResolverProvider;
 
@@ -624,6 +638,12 @@ class JSqlClientImpl implements JSqlClientImplementor {
                     executorContextPrefixes = new ArrayList<>(set);
                 }
             }
+            return this;
+        }
+
+        @Override
+        public Builder setSqlFormatter(SqlFormatter sqlFormatter) {
+            this.sqlFormatter = sqlFormatter != null ? sqlFormatter : SqlFormatter.SIMPLE;
             return this;
         }
 
@@ -1018,6 +1038,7 @@ class JSqlClientImpl implements JSqlClientImplementor {
                     dialect,
                     executor,
                     executorContextPrefixes,
+                    sqlFormatter,
                     idGeneratorMap,
                     new ScalarProviderManager(typeScalarProviderMap, propScalarProviderMap, defaultEnumStrategy, dialect),
                     defaultBatchSize,

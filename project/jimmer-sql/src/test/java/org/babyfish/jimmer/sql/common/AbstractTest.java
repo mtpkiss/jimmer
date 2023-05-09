@@ -19,6 +19,7 @@ import org.babyfish.jimmer.sql.model.JimmerModule;
 import org.babyfish.jimmer.sql.model.calc.BookStoreMostPopularAuthorResolver;
 import org.babyfish.jimmer.sql.runtime.*;
 import org.h2.Driver;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -40,7 +41,7 @@ import java.util.function.Function;
 
 public class AbstractTest {
 
-    private static final String JDBC_URL = "jdbc:h2:~/jimmer_test_db;database_to_upper=true";
+    protected static final String JDBC_URL = "jdbc:h2:~/jimmer_test_db;database_to_upper=true";
 
     private Map<Class<?>, AutoIds> autoIdMap = new HashMap<>();
 
@@ -66,17 +67,9 @@ public class AbstractTest {
     private class ExecutorImpl implements Executor {
 
         @Override
-        public <R> R execute(
-                Connection con,
-                String sql,
-                List<Object> variables,
-                ExecutionPurpose purpose,
-                @Nullable ExecutorContext ctx,
-                StatementFactory statementFactory,
-                SqlFunction<PreparedStatement, R> block
-        ) {
-            executions.add(new Execution(sql, variables));
-            return DefaultExecutor.INSTANCE.execute(con, sql, variables, purpose, ExecutorContext.create(sqlClient), statementFactory, block);
+        public <R> R execute(@NotNull Args<R> args) {
+            executions.add(new Execution(args.sql, args.variables));
+            return DefaultExecutor.INSTANCE.execute(args);
         }
     }
 
@@ -205,7 +198,7 @@ public class AbstractTest {
 
     private static class AutoIds {
 
-        private List<Object> ids;
+        private final List<Object> ids;
 
         private int index;
 
