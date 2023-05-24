@@ -23,7 +23,6 @@ import org.babyfish.jimmer.sql.meta.DatabaseNamingStrategy
 import org.babyfish.jimmer.sql.meta.IdGenerator
 import org.babyfish.jimmer.sql.runtime.*
 import java.sql.Connection
-import java.sql.PreparedStatement
 import java.util.function.Function
 import kotlin.reflect.KClass
 import kotlin.reflect.KProperty1
