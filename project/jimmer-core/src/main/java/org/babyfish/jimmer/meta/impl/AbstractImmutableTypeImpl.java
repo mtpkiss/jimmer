@@ -32,4 +32,11 @@ public abstract class AbstractImmutableTypeImpl implements ImmutableType {
         }
         return chain;
     }
+
+    public void validateColumns(MetadataStrategy strategy) {
+        propChainsMap.computeIfAbsent(
+                strategy,
+                it -> PropChains.of(this, it)
+        );
+    }
 }
