@@ -7,7 +7,7 @@ import org.babyfish.jimmer.Formula;
 import org.babyfish.jimmer.Scalar;
 import org.babyfish.jimmer.apt.Context;
 import org.babyfish.jimmer.apt.generator.Strings;
-import org.babyfish.jimmer.meta.impl.ViewUtils;
+import org.babyfish.jimmer.meta.impl.Utils;
 import org.babyfish.jimmer.meta.impl.PropDescriptor;
 import org.babyfish.jimmer.sql.*;
 
@@ -85,6 +85,8 @@ public class ImmutableProp {
     private ImmutableProp manyToManyViewBaseDeeperProp;
 
     private Boolean remote;
+
+    private int resolvedStep = -1;
 
     public ImmutableProp(
             Context context,
@@ -538,22 +540,27 @@ public class ImmutableProp {
         return false;
     }
 
-    boolean resolve(Context context, int step) {
+    void resolve(Context context, int step) {
+        if (resolvedStep >= step) {
+            return;
+        }
         switch (step) {
             case 0:
                 resolveTargetType(context);
-                return true;
+                break;
             case 1:
                 resolveFormulaDependencies();
-                return true;
+                break;
             case 2:
                 resolveIdViewBaseProp();
-                return true;
+                break;
             case 3:
                 resolveManyToManyViewProp(context);
+                break;
             default:
-                return false;
+                break;
         }
+        resolvedStep = step;
     }
 
     private void resolveTargetType(Context context) {
@@ -614,7 +621,7 @@ public class ImmutableProp {
         }
         String base = idView.value();
         if (base.isEmpty()) {
-            base = ViewUtils.defaultBasePropName(isList, name);
+            base = Utils.defaultViewBasePropName(isList, name);
             if (base == null) {
                 throw new MetaException(
                         executableElement,

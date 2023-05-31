@@ -5,6 +5,7 @@ import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import org.babyfish.jimmer.ksp.meta.ImmutableProp
 import org.babyfish.jimmer.ksp.meta.ImmutableType
 import org.babyfish.jimmer.meta.PropId
+import java.io.Serializable
 import kotlin.reflect.KClass
 
 class ImplGenerator(
@@ -18,6 +19,7 @@ class ImplGenerator(
                 .addModifiers(KModifier.PRIVATE)
                 .addSuperinterface(type.draftClassName(PRODUCER, IMPLEMENTOR))
                 .addSuperinterface(CLONEABLE_CLASS_NAME)
+                .addSuperinterface(Serializable::class)
                 .apply {
                     addProperty(
                         PropertySpec
@@ -143,9 +145,10 @@ class ImplGenerator(
                                         idViewBaseProp !== null ->
                                             if (prop.isList) {
                                                 addStatement(
-                                                    "return %N.map {it.%N}",
-                                                    idViewBaseProp.name,
-                                                    idViewBaseProp.targetType!!.idProp!!.name
+                                                    "return %T(%T.type, %L)",
+                                                    ID_VIEW_CLASS_NAME,
+                                                    idViewBaseProp.targetType!!.draftClassName("$"),
+                                                    idViewBaseProp.name
                                                 )
                                             } else {
                                                 addStatement(
